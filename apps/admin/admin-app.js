@@ -217,7 +217,7 @@ function saveConfig(cfg) {
             action: 'batchUpsert',
             sheet: 'config',
             compositeKey: ['key'],
-            items: [{ key: 'shelf-life-config', value: cfg }]
+            items: [{ key: 'shelf-life-config', value: JSON.stringify(cfg) }]
         }).catch(function(e) {
             console.warn('config sync error', e.message || e);
         });
@@ -1683,6 +1683,8 @@ function initApp() {
     renderAll(); // Show localStorage data immediately before async pull
     if (window.syncManager) {
         window.syncManager.init();
+        // Re-push config to sheet on init to fix any corrupted rows
+        saveConfig(CONFIG);
         (window.syncManager.pullConfig ? window.syncManager.pullConfig() : Promise.resolve()).then(function() {
             if (window.syncManager.pullFromSupabase) {
                 return window.syncManager.pullFromSupabase().then(function() {

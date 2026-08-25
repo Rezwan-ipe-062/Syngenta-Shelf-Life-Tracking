@@ -286,8 +286,13 @@
         return apiGet('readFiltered', { sheet: 'config', key: 'key', value: 'shelf-life-config' }).then(function (data) {
             if (data && data.value) {
                 var val = data.value;
-                var toStore = typeof val === 'string' ? val : JSON.stringify(val);
-                localStorage.setItem('shelf-life-config', toStore);
+                if (typeof val === 'string') {
+                    try { JSON.parse(val); localStorage.setItem('shelf-life-config', val); } catch (e) {
+                        console.warn('syncManager: config value is corrupted, resetting to defaults');
+                    }
+                } else if (typeof val === 'object' && val !== null) {
+                    localStorage.setItem('shelf-life-config', JSON.stringify(val));
+                }
             }
         }).catch(function (e) {
             console.warn('syncManager: pullConfig error', e.message || e);
