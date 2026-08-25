@@ -199,15 +199,20 @@
                 (localData.inventory && localData.inventory.length > 0)
             );
             if (!hasCloudData && hasLocalData) {
-                var cfg = loadRaw('shelf-life-config');
-                if (cfg && cfg._lastReset) {
-                    localStorage.removeItem('operator-data');
-                    syncCallbacks.forEach(function (cb) { try { cb(); } catch (e) {} });
-                    return;
-                } else {
+                var hasPending = (localData.transactions || []).some(function(t) { return t.sync_status === 'pending'; }) ||
+                                (localData.inventory || []).some(function(i) { return i.sync_status === 'pending'; });
+                if (hasPending) {
+                    pulled = {
+                        transactions: (localData.transactions || []).filter(function(t) { return t.sync_status === 'pending'; }),
+                        inventory: (localData.inventory || []).filter(function(i) { return i.sync_status === 'pending'; })
+                    };
+                    localStorage.setItem('operator-data', JSON.stringify(pulled));
                     syncCallbacks.forEach(function (cb) { try { cb(); } catch (e) {} });
                     return;
                 }
+                localStorage.removeItem('operator-data');
+                syncCallbacks.forEach(function (cb) { try { cb(); } catch (e) {} });
+                return;
             }
 
             var pulled = {
