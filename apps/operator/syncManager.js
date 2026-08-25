@@ -5,7 +5,7 @@
     // Replace this URL with your deployed Apps Script web app URL.
     // Deploy from: Google Sheet → Extensions → Apps Script → Deploy
     // =====================================================
-    var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxlnWuO0UQn62SE-RNxIJBhD4CTPXPSDrRFXTFi2HcBGNhs732zfFryF4ymRBbGOEG3uw/exec';
+    var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxEJY8ckQ0BaQr_14xav_K5MtMVFra2bq74xWy9Q9TogJ_roWR64xI9iSgLvS5xRck_bg/exec';
 
     var isSyncing = false;
     var syncCallbacks = [];
