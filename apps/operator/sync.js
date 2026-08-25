@@ -10,6 +10,20 @@
         try { var d = localStorage.getItem(key); return d ? JSON.parse(d) : null; } catch (e) { return null; }
     }
 
+    function computeInventory(transactions) {
+        var inv = {};
+        transactions.forEach(function (tx) {
+            var key = (tx.product || '') + '|' + (tx.packSize || '') + '|' + (tx.productionMonth || '') + '|' + (tx.warehouse || '');
+            if (!inv[key]) {
+                inv[key] = { product: tx.product || '', packSize: tx.packSize || '', productionMonth: tx.productionMonth || '', expiryMonth: tx.expiryMonth || '', quantity: 0, warehouse: tx.warehouse || '' };
+            }
+            if (tx.type === 'receive') inv[key].quantity += tx.quantity || 0;
+            else if (tx.type === 'dispatch') inv[key].quantity = Math.max(0, inv[key].quantity - (tx.quantity || 0));
+            else if (tx.type === 'adjustment') inv[key].quantity = tx.quantity || 0;
+        });
+        return Object.values(inv).filter(function (i) { return i.quantity > 0; });
+    }
+
     function apiGet(action, params) {
         var qs = 'action=' + encodeURIComponent(action);
         if (params) {
@@ -143,12 +157,7 @@
         },
 
         pullAll: function () {
-            return Promise.all([
-                sync.pullTransactions(),
-                sync.pullInventory()
-            ]).then(function (results) {
-                var txRows = results[0];
-                var invRows = results[1];
+            return sync.pullTransactions().then(function (txRows) {
 
                 var localData = loadRaw('operator-data') || { transactions: [], inventory: [] };
 
@@ -173,23 +182,6 @@
                     }
                 });
 
-                // Build cloud inventory (deduped and aggregated)
-                var cloudInv = {};
-                invRows.forEach(function (i) {
-                    var key = (i.product || '') + '|' + (i.pack_size || '') + '|' + (i.production_month || '') + '|' + (i.warehouse || '');
-                    if (!cloudInv[key]) {
-                        cloudInv[key] = {
-                            product: i.product || '',
-                            packSize: i.pack_size || '',
-                            productionMonth: i.production_month || '',
-                            expiryMonth: i.expiry_month || '',
-                            quantity: 0,
-                            warehouse: i.warehouse || ''
-                        };
-                    }
-                    cloudInv[key].quantity += (parseInt(i.quantity) || 0);
-                });
-
                 // Merge: cloud transactions + unmatched local pending
                 var localPendingTx = (localData.transactions || []).filter(function (t) { return !t.synced; });
                 var mergedTx = Object.values(cloudTx);
@@ -197,12 +189,8 @@
                     if (!cloudTx[t.timestamp]) mergedTx.push(t);
                 });
 
-                // Merge: cloud inventory + local pending inventory
-                var mergedInv = Object.values(cloudInv);
-                var localPendingInv = (localData.inventory || []).filter(function (i) { return !i.synced; });
-                localPendingInv.forEach(function (i) {
-                    mergedInv.push(i);
-                });
+                // Compute inventory from merged transactions (no stale local copy)
+                var mergedInv = computeInventory(mergedTx);
 
                 var merged = { transactions: mergedTx, inventory: mergedInv };
                 localStorage.setItem('operator-data', JSON.stringify(merged));
