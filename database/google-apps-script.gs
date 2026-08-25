@@ -114,13 +114,13 @@ function doPost(e) {
         var items = body.items || [];
         var lastRow = sheet.getLastRow();
         var lastCol = sheet.getLastColumn();
-        var data = lastRow >= 2 ? sheet.getRange(1, 1, lastRow, lastCol).getValues() : [];
+        var data = lastRow >= 1 ? sheet.getRange(1, 1, lastRow, lastCol).getValues() : [];
         var headers = data.length > 0 ? data[0] : [];
         var updated = 0, inserted = 0;
 
         items.forEach(function (item) {
             var curLastRow = sheet.getLastRow();
-            var curData = curLastRow >= 2 ? sheet.getRange(1, 1, curLastRow, lastCol).getValues() : [];
+            var curData = curLastRow >= 1 ? sheet.getRange(1, 1, curLastRow, lastCol).getValues() : [];
             var curHeaders = curData.length > 0 ? curData[0] : headers;
 
             var foundRow = -1;
