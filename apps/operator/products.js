@@ -1,8 +1,5 @@
-// Product Master Data - 69 SKUs
-// Format: { name, packSize, prefix }
-// Overridden by synced products from admin via syncManager.pullProducts()
-let PRODUCTS = [
-    // SCH Products
+// products.js — Product master data and helpers
+var PRODUCTS = [
     { name: "Actara", packSize: "5g", prefix: "SCH" },
     { name: "Amistar", packSize: "50ml", prefix: "SCH" },
     { name: "Amistar", packSize: "100ml", prefix: "SCH" },
@@ -58,8 +55,6 @@ let PRODUCTS = [
     { name: "Virtako", packSize: "30g", prefix: "SCH" },
     { name: "Voliam", packSize: "50ml", prefix: "SCH" },
     { name: "Plenum", packSize: "50g", prefix: "SCH" },
-
-    // Non-SCH Products
     { name: "Atresia", packSize: "50ml", prefix: "JAK" },
     { name: "Cruiser", packSize: "20g", prefix: "SPL" },
     { name: "Caliber", packSize: "100g", prefix: "EC" },
@@ -72,108 +67,54 @@ let PRODUCTS = [
     { name: "Protozim", packSize: "50ml", prefix: "BWL" },
     { name: "Protozim", packSize: "100ml", prefix: "BWL" },
     { name: "Protozim", packSize: "500ml", prefix: "BWL" },
-
-    // No Prefix Products
     { name: "PJ-16", packSize: "", prefix: "" },
     { name: "XP-16", packSize: "", prefix: "" }
 ];
 
-// AGI Code mapping (from reference data)
-const AGI_CODE_MAP = {
-    "Actara|5g": "34779",
-    "Alika|50ml": "69667",
-    "Amistar|50ml": "53294",
-    "Armure|100ml": "85250",
-    "Atresia|50ml": "88294",
-    "Bingo|100g": "63728",
-    "Bingo|500g": "63728",
-    "Caliber|100g": "68507",
-    "Caliber|500g": "68507",
-    "Cruiser|20g": "63913",
-    "Denim Fit|10g": "87224",
-    "Filia|50ml": "55458",
-    "Filia|100ml": "46420",
-    "Filia|500ml": "57918",
-    "Gayte|100g": "69037",
-    "Grozin|1kg": "35440",
-    "Grozin|2kg": "56655",
-    "Incipio|40ml": "80926",
-    "Jazz|100g": "52539",
-    "Jazz|500g": "52537",
-    "Karate|50ml": "58896",
-    "Lanirat|100g": "35723",
-    "Laser|25g": "43868",
-    "Magma|1kg": "63731",
-    "Miravis Duo|50ml": "80927",
-    "Miravis Duo|100ml": "81359",
-    "Pegasus|100ml": "61124",
-    "Plenum|50g": "64213",
-    "Proclam|10g": "70887",
-    "Proclam|30g": "70897",
-    "Protozim|50ml": "59703",
-    "Revus|50ml": "58513",
-    "Revus|100ml": "53508",
-    "Revus|500ml": "53924",
-    "Ridomil|100g": "38775",
-    "Ridomil|500g": "38776",
-    "Rifit|100ml": "35348",
-    "Score|50ml": "34002",
-    "Score|100ml": "30593",
-    "Score|500ml": "34001",
-    "Shobicron|50ml": "29568",
-    "Silika|1kg": "58337",
-    "Thiovit|1kg": "92798",
-    "Tilt|50ml": "58888",
-    "Vestoria|15g": "84793",
-    "Vertimec|50ml": "63105",
-    "Virtako|10g": "72598",
+var AGI_CODES = {
+    "Actara|5g": "34779", "Alika|50ml": "69667", "Amistar|50ml": "53294",
+    "Armure|100ml": "85250", "Atresia|50ml": "88294", "Bingo|100g": "63728",
+    "Bingo|500g": "63728", "Caliber|100g": "68507", "Caliber|500g": "68507",
+    "Cruiser|20g": "63913", "Denim Fit|10g": "87224", "Filia|50ml": "55458",
+    "Filia|100ml": "46420", "Filia|500ml": "57918", "Gayte|100g": "69037",
+    "Grozin|1kg": "35440", "Grozin|2kg": "56655", "Incipio|40ml": "80926",
+    "Jazz|100g": "52539", "Jazz|500g": "52537", "Karate|50ml": "58896",
+    "Lanirat|100g": "35723", "Laser|25g": "43868", "Magma|1kg": "63731",
+    "Miravis Duo|50ml": "80927", "Miravis Duo|100ml": "81359",
+    "Pegasus|100ml": "61124", "Plenum|50g": "64213", "Proclam|10g": "70887",
+    "Proclam|30g": "70897", "Protozim|50ml": "59703", "Revus|50ml": "58513",
+    "Revus|100ml": "53508", "Revus|500ml": "53924", "Ridomil|100g": "38775",
+    "Ridomil|500g": "38776", "Rifit|100ml": "35348", "Score|50ml": "34002",
+    "Score|100ml": "30593", "Score|500ml": "34001", "Shobicron|50ml": "29568",
+    "Silika|1kg": "58337", "Thiovit|1kg": "92798", "Tilt|50ml": "58888",
+    "Vestoria|15g": "84793", "Vertimec|50ml": "63105", "Virtako|10g": "72598",
     "Voliam|50ml": "43978"
 };
 
-function getProductAgiCode(name, packSize) {
-    return AGI_CODE_MAP[name + '|' + (packSize || '')] || '';
+function getAgiCode(name, packSize) {
+    return AGI_CODES[name + '|' + (packSize || '')] || '';
 }
 
-// Helper: Get unique product names
 function getUniqueProductNames() {
-    const names = [...new Set(PRODUCTS.map(p => p.name))];
-    return names.sort();
+    return [...new Set(PRODUCTS.map(function (p) { return p.name; }))].sort();
 }
 
-// Helper: Get pack sizes for a product name
-function getPackSizes(productName) {
-    return PRODUCTS.filter(p => p.name === productName);
-}
-
-// Helper: Find product by name and pack size
 function findProduct(name, packSize) {
-    return PRODUCTS.find(p => p.name === name && p.packSize === packSize);
+    return PRODUCTS.find(function (p) { return p.name === name && p.packSize === packSize; });
 }
 
-// Helper: Filter products by search term
-function filterProducts(searchTerm, selectedProduct) {
-    let filtered = PRODUCTS;
-
-    // Filter by selected product (Excel-like filter)
-    if (selectedProduct) {
-        filtered = filtered.filter(p => p.name === selectedProduct);
-    }
-
-    // Filter by search term - matches START of name only
+function filterProducts(searchTerm, selectedName) {
+    var filtered = PRODUCTS;
+    if (selectedName) filtered = filtered.filter(function (p) { return p.name === selectedName; });
     if (searchTerm) {
-        const term = searchTerm.toLowerCase();
-        filtered = filtered.filter(p => {
-            const name = p.name.toLowerCase();
-            const pack = p.packSize.toLowerCase();
-            // Match if name STARTS WITH search term
-            return name.startsWith(term) || pack.startsWith(term);
+        var term = searchTerm.toLowerCase();
+        filtered = filtered.filter(function (p) {
+            return p.name.toLowerCase().startsWith(term) || p.packSize.toLowerCase().startsWith(term);
         });
     }
-
     return filtered;
 }
 
-// Load synced products from admin (if available)
 function loadSyncedProducts() {
     try {
         var saved = localStorage.getItem('synced-products');
@@ -181,17 +122,12 @@ function loadSyncedProducts() {
             var list = JSON.parse(saved);
             if (list && list.length > 0) {
                 PRODUCTS.length = 0;
-                list.forEach(function(p) {
+                list.forEach(function (p) {
                     PRODUCTS.push({ name: p.name, packSize: p.pack || p.packSize || '', prefix: p.prefix || '' });
                 });
-                return true;
             }
         }
-    } catch(e) {}
-    return false;
+    } catch (e) {}
 }
 
-// Call on init to check for synced products
-(function() {
-    loadSyncedProducts();
-})();
+(function () { loadSyncedProducts(); })();

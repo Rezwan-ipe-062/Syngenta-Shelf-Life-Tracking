@@ -1,17 +1,11 @@
 {
-  "name": "Syngenta — 12 Month Shelf Life",
-  "short_name": "12M Inventory",
-  "description": "Inventory tracking system for 12-month shelf life products",
-  "start_url": "./index.html",
+  "name": "Syngenta Shelf Life Tracking",
+  "short_name": "ShelfLife",
+  "start_url": ".",
   "display": "standalone",
-  "background_color": "#00843D",
+  "background_color": "#F5F6F8",
   "theme_color": "#00843D",
   "icons": [
-    {
-      "src": "favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }
   ]
 }

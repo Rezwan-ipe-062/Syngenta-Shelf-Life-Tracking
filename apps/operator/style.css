@@ -8,23 +8,23 @@
 }
 
 :root {
-    --primary: #00843D;
-    --primary-dark: #005A2B;
+    --green: #00843D;
+    --green-dark: #005A2B;
     --success: #16A34A;
     --danger: #DC2626;
     --warning: #F97316;
     --caution: #FACC15;
-    --bg: #F6F8F7;
+    --bg: #F5F6F8;
     --surface: #FFFFFF;
     --text: #1F2933;
     --text-secondary: #52616B;
-    --text-muted: #7B8794;
+    --text-muted: #99A5B0;
     --border: #D9E2EC;
-    --border-soft: #E6EEF5;
+    --border-soft: #EDF1F5;
     --shadow: 0 1px 3px rgba(0,0,0,0.08);
     --table-header: #EEF7F1;
-    --green-light: #E6F4EC;
-    --green-pale: #F3FAF6;
+    --green-light: #E8F5E9;
+    --green-pale: #F0FFF4;
 }
 
 body {
@@ -152,7 +152,7 @@ body {
     align-items: center;
     gap: 8px;
     padding: 10px 16px;
-    background: var(--primary-dark);
+    background: var(--green-dark);
     color: white;
 }
 
@@ -224,7 +224,7 @@ body {
 }
 
 #search-input:focus {
-    border-color: var(--primary);
+    border-color: var(--green);
     background: white;
 }
 
@@ -281,7 +281,7 @@ body {
     border-radius: 50%;
     border: none;
     background: transparent;
-    color: var(--primary);
+    color: var(--green);
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
@@ -292,7 +292,7 @@ body {
 }
 
 .alpha-btn:active {
-    background: var(--primary);
+    background: var(--green);
     color: white;
     transform: scale(1.2);
 }
@@ -365,9 +365,9 @@ body {
     padding: 8px 16px 4px;
     font-size: 20px;
     font-weight: 700;
-    color: var(--primary);
+    color: var(--green);
     background: var(--bg);
-    border-bottom: 2px solid var(--primary);
+    border-bottom: 2px solid var(--green);
 }
 
 /* ==================== COUNT SCREEN ==================== */
@@ -390,7 +390,7 @@ body {
     padding: 8px 0;
     border: none;
     background: none;
-    color: var(--primary);
+    color: var(--green);
     font-size: 16px;
     font-weight: 500;
     cursor: pointer;
@@ -443,9 +443,9 @@ body {
 }
 
 .year-btn.selected {
-    border-color: var(--primary);
+    border-color: var(--green);
     background: var(--green-light);
-    color: var(--primary);
+    color: var(--green);
     transform: scale(1.02);
     box-shadow: 0 2px 8px rgba(0,132,61,0.2);
 }
@@ -472,9 +472,9 @@ body {
 }
 
 .month-btn.selected {
-    border-color: var(--primary);
+    border-color: var(--green);
     background: var(--green-light);
-    color: var(--primary);
+    color: var(--green);
     transform: scale(1.02);
     box-shadow: 0 2px 8px rgba(0,132,61,0.2);
 }
@@ -671,7 +671,7 @@ body {
 }
 
 .stack-field input:focus {
-    border-color: var(--primary);
+    border-color: var(--green);
     background: white;
     outline: none;
 }
@@ -690,7 +690,7 @@ body {
     border-radius: 8px;
     font-size: 18px;
     font-weight: 600;
-    color: var(--primary);
+    color: var(--green);
     margin-bottom: 12px;
 }
 
@@ -704,7 +704,7 @@ body {
     padding: 12px;
     border: none;
     border-radius: 8px;
-    background: var(--primary);
+    background: var(--green);
     color: white;
     font-size: 15px;
     font-weight: 600;
@@ -712,7 +712,7 @@ body {
 }
 
 .stack-apply-btn:active {
-    background: var(--primary-dark);
+    background: var(--green-dark);
 }
 
 .quantity-tip {
@@ -727,7 +727,7 @@ body {
     padding: 16px;
     border: none;
     border-radius: 12px;
-    background: var(--primary);
+    background: var(--green);
     color: white;
     font-size: 18px;
     font-weight: 600;
@@ -737,7 +737,7 @@ body {
 }
 
 .save-btn:active {
-    background: var(--primary-dark);
+    background: var(--green-dark);
 }
 
 .save-btn:disabled {
@@ -786,7 +786,7 @@ body {
     padding: 14px 32px;
     border: none;
     border-radius: 12px;
-    background: var(--primary);
+    background: var(--green);
     color: white;
     font-size: 16px;
     font-weight: 600;
@@ -794,7 +794,7 @@ body {
 }
 
 .btn-continue:active {
-    background: var(--primary-dark);
+    background: var(--green-dark);
 }
 
 /* ==================== RESPONSIVE ==================== */
@@ -918,7 +918,7 @@ body {
     padding: 16px;
     border: none;
     border-radius: 12px;
-    background: var(--primary);
+    background: var(--green);
     color: white;
     font-size: 18px;
     font-weight: 600;
@@ -926,7 +926,7 @@ body {
 }
 
 .numpad-confirm:active {
-    background: var(--primary-dark);
+    background: var(--green-dark);
 }
 
 .quantity-tip {
@@ -967,11 +967,11 @@ body {
 }
 
 .nav-btn.active {
-    color: var(--primary);
+    color: var(--green);
 }
 
 .nav-btn.active .nav-icon svg {
-    stroke: var(--primary);
+    stroke: var(--green);
 }
 
 .nav-icon {
@@ -994,7 +994,7 @@ body {
     transform: translateX(-50%);
     width: 20px;
     height: 3px;
-    background: var(--primary);
+    background: var(--green);
     border-radius: 2px;
 }
 
@@ -1041,7 +1041,7 @@ body {
 }
 
 .inventory-search input:focus {
-    border-color: var(--primary);
+    border-color: var(--green);
     background: white;
 }
 

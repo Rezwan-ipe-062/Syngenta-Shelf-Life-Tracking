@@ -709,7 +709,7 @@ function renderActivity(filter) {
         } else {
             typeHtml = '<span style="color:#333;font-weight:600;">\u25CF</span> Set';
         }
-        return '<tr><td>' + (d.date || d.timestamp || '') + '</td><td>' + d.product + '</td><td>' + (d.packSize || '') + '</td><td>' + (getAgiCode(d.product, d.packSize || '') || '\u2014') + '</td><td>' + (d.productionMonth || '') + '</td><td>' + (d.warehouse || '\u2014') + '</td><td>' + typeHtml + '</td><td>' + d.quantity + '</td><td>' + (d.operator_name || '\u2014') + '</td></tr>';
+        return '<tr><td>' + (d.date || d.timestamp || '') + '</td><td>' + d.product + '</td><td>' + (d.packSize || '') + '</td><td>' + (getAgiCode(d.product, d.packSize || '') || '\u2014') + '</td><td>' + (d.productionMonth || '') + '</td><td>' + (d.warehouse || '\u2014') + '</td><td>' + typeHtml + '</td><td>' + d.quantity + '</td><td>' + (d.operator || '\u2014') + '</td></tr>';
     }).join('');
 }
 
@@ -941,7 +941,7 @@ function exportActivity() {
     filtered.forEach(d => {
         const typeLabels = { 'receive': 'Addition', 'dispatch': 'Subtraction', 'adjustment': 'Set' };
         const typeText = typeLabels[d.type] || d.type;
-        csv += (d.date || '') + ',' + d.product + ',' + (d.packSize || '') + ',' + (getAgiCode(d.product, d.packSize || '') || '') + ',' + (d.productionMonth || '') + ',' + (d.warehouse || '') + ',' + typeText + ',' + d.quantity + ',' + (d.operator_name || '') + '\n';
+        csv += (d.date || '') + ',' + d.product + ',' + (d.packSize || '') + ',' + (getAgiCode(d.product, d.packSize || '') || '') + ',' + (d.productionMonth || '') + ',' + (d.warehouse || '') + ',' + typeText + ',' + d.quantity + ',' + (d.operator || '') + '\n';
     });
     downloadCSV(csv, 'Activity_Log_' + new Date().toISOString().slice(0, 10) + '.csv');
 }
@@ -1518,7 +1518,7 @@ function clearCloudData() {
     if (!confirm('Delete ALL data from the cloud? This will clear: transactions, inventory, monthly_snapshots, config.')) return;
     if (!confirm('FINAL WARNING: This removes ALL data from the cloud database. Continue?')) return;
 
-    if (!window.syncManager || !window.syncManager.clearCloudData) {
+    if (!window.syncManager || !window.syncManager.clearCloud) {
         alert('Cloud not connected. Data may already be cleared, or the app needs a reload.');
         return;
     }
@@ -1526,10 +1526,9 @@ function clearCloudData() {
     var btn = document.querySelector('button[onclick*="clearCloudData"]');
     if (btn) { btn.disabled = true; btn.textContent = 'Clearing...'; }
 
-    window.syncManager.clearCloudData().then(function() {
+    window.syncManager.clearCloud().then(function() {
         alert('All cloud data cleared successfully! Re-saving config and products.');
         localStorage.removeItem('operator-data');
-        CONFIG._lastReset = Date.now();
         saveConfig(CONFIG);
         syncProducts();
     }).catch(function(e) {
@@ -1596,7 +1595,7 @@ function renderOperatorStats() {
     var byOperator = {};
     var today = new Date().toISOString().slice(0, 10);
     txs.forEach(function (tx) {
-        var name = tx.operator_name || 'Unknown';
+        var name = tx.operator || 'Unknown';
         if (!byOperator[name]) byOperator[name] = { total: 0, today: 0, lastDate: '' };
         byOperator[name].total += (tx.quantity || 0);
         if (tx.date && tx.date.slice(0, 10) === today) byOperator[name].today += (tx.quantity || 0);
@@ -1686,8 +1685,8 @@ function initApp() {
         // Re-push config to sheet on init to fix any corrupted rows
         saveConfig(CONFIG);
         (window.syncManager.pullConfig ? window.syncManager.pullConfig() : Promise.resolve()).then(function() {
-            if (window.syncManager.pullFromSupabase) {
-                return window.syncManager.pullFromSupabase().then(function() {
+            if (window.syncManager.pullAll) {
+                return window.syncManager.pullAll().then(function() {
                     renderAll();
                     startAutoRefresh();
                 });
@@ -1704,8 +1703,8 @@ var _refreshInterval = null;
 function startAutoRefresh() {
     if (_refreshInterval) clearInterval(_refreshInterval);
     _refreshInterval = setInterval(function() {
-        if (window.syncManager && window.syncManager.pullFromSupabase) {
-            window.syncManager.pullFromSupabase().then(function() {
+        if (window.syncManager && window.syncManager.pullAll) {
+            window.syncManager.pullAll().then(function() {
                 refreshCurrentScreen();
             });
         }
@@ -1713,8 +1712,8 @@ function startAutoRefresh() {
 }
 
 function manualRefresh() {
-    if (window.syncManager && window.syncManager.pullFromSupabase) {
-        window.syncManager.pullFromSupabase().then(function() {
+    if (window.syncManager && window.syncManager.pullAll) {
+        window.syncManager.pullAll().then(function() {
             refreshCurrentScreen();
         });
     }

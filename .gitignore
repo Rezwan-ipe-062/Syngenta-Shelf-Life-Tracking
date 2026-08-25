@@ -1,29 +1,3 @@
-# OS files
 .DS_Store
 Thumbs.db
-*.swp
-
-# IDE
-.idea/
-.vscode/
-
-# Python
-__pycache__/
-*.pyc
-
-# Logs
 *.log
-
-# Auto-generated
-graphify-out/
-
-# Nested duplicate
-12M-Inventory-Tracking-main/
-
-# Config
-opencode.json
-
-# Large binary files
-*.xlsx
-*.jpg
-*.pdf
