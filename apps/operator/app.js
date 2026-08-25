@@ -118,6 +118,7 @@ function initPinLogin() {
             document.querySelectorAll('.wh-indicator').forEach(function(el) { el.textContent = state.operatorName + ' · ' + state.warehouse; });
             showScreen('products');
             initProductList();
+            startOperatorAutoRefresh();
         } else {
             state.pin = '';
             updatePinDisplay();
@@ -171,6 +172,8 @@ function initProductList() {
 
     logoutBtn.addEventListener('click', () => {
         state.pin = '';
+        state.operatorName = '';
+        stopOperatorAutoRefresh();
         showScreen('login');
         document.getElementById('bottom-nav').style.display = 'none';
         document.querySelectorAll('.pin-dot').forEach(d => d.classList.remove('filled'));
@@ -873,31 +876,71 @@ function render12MonthList() {
 }
 
 // ==================== INIT ====================
+var _operatorRefreshInterval = null;
+
+function startOperatorAutoRefresh() {
+    if (_operatorRefreshInterval) clearInterval(_operatorRefreshInterval);
+    _operatorRefreshInterval = setInterval(function () {
+        if (window.syncManager && window.syncManager.pullFromSupabase) {
+            window.syncManager.pullFromSupabase().then(function () {
+                loadFromStorage();
+                if (state.currentScreen === 'inventory') renderInventoryList();
+                if (state.currentScreen === 'twelve-month') render12MonthList();
+            });
+        }
+    }, 15000);
+}
+
+function stopOperatorAutoRefresh() {
+    if (_operatorRefreshInterval) { clearInterval(_operatorRefreshInterval); _operatorRefreshInterval = null; }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    loadFromStorage();
     if (window.syncManager) {
         window.syncManager.init();
-        window.syncManager.pullConfig().then(function() {
-            return window.syncManager.pullProducts();
-        }).then(function() {
-            loadSyncedProducts();
-            return window.syncManager.pullFromSupabase().then(function() {
-                loadFromStorage();
-                // Rebuild product list UI after loading synced products
-                initProductList();
-                // Sync any pending items only after pull completes
-                if (navigator.onLine) window.syncManager.syncAll();
-            });
-        });
         window.syncManager.onSync(() => {
             if (state.currentScreen === 'inventory') renderInventoryList();
             if (state.currentScreen === 'twelve-month') render12MonthList();
         });
     }
-    initPinLogin();
+
+    // PIN pad disabled until config is ready
+    document.querySelectorAll('.pin-btn[data-num]').forEach(b => b.disabled = true);
+    document.querySelector('.pin-btn[data-action="delete"]').disabled = true;
+
+    var configReady = (window.syncManager && window.syncManager.pullConfig)
+        ? window.syncManager.pullConfig()
+        : Promise.resolve();
+
+    configReady.then(function () {
+        return window.syncManager ? window.syncManager.pullProducts() : Promise.resolve();
+    }).then(function () {
+        if (typeof loadSyncedProducts === 'function') loadSyncedProducts();
+        return window.syncManager ? window.syncManager.pullFromSupabase() : Promise.resolve();
+    }).then(function () {
+        loadFromStorage();
+        initProductList();
+        if (navigator.onLine && window.syncManager) window.syncManager.syncAll();
+    }).then(function () {
+        // Enable PIN pad after config + data loaded
+        document.querySelectorAll('.pin-btn[data-num]').forEach(b => b.disabled = false);
+        document.querySelector('.pin-btn[data-action="delete"]').disabled = false;
+        initPinLogin();
+    });
+
+    // Re-pull when user returns to this tab
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible' && state.operatorName && window.syncManager && window.syncManager.pullFromSupabase) {
+            window.syncManager.pullFromSupabase().then(function () {
+                loadFromStorage();
+                if (state.currentScreen === 'inventory') renderInventoryList();
+                if (state.currentScreen === 'twelve-month') render12MonthList();
+            });
+        }
+    });
+
     initBottomNav();
 
-    // Inventory search input
     const invSearch = document.getElementById('inv-search');
     if (invSearch) {
         invSearch.addEventListener('input', () => renderInventoryList());
