@@ -1,7 +1,7 @@
 // sync.js — Offline-first sync between localStorage and Google Sheets
 // Shared by operator app and admin panel
 (function () {
-    var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_URL/exec';
+    var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxEJY8ckQ0BaQr_14xav_K5MtMVFra2bq74xWy9Q9TogJ_roWR64xI9iSgLvS5xRck_bg/exec';
 
     var isSyncing = false;
     var syncCallbacks = [];
