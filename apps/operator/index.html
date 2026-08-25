@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#00843D">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="manifest" href="manifest.json">
+    <title>Syngenta — Shelf Life Tracking v2.0</title>
+    <link rel="stylesheet" href="style.css">
+
+    <style>
+        /* Dark mode support via data attribute */
+        @media (prefers-color-scheme: dark) {
+            [data-theme="dark"] {
+                --bg: #1a1d23;
+                --surface: #24272e;
+                --text: #e8eaed;
+                --text-secondary: #9aa0a6;
+                --text-muted: #6b7280;
+                --border: #383b42;
+                --border-soft: #2d3037;
+                --table-header: #1e2d26;
+                --green-light: #1a3322;
+                --green-pale: #16261c;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Screen 1: PIN Login -->
+    <div id="screen-login" class="screen active">
+        <div class="login-container">
+            <div class="login-header">
+                <div class="brand-icon">
+                    <svg width="40" height="40" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <ellipse cx="512" cy="512" rx="400" ry="270" fill="#007A3D" transform="rotate(-28 512 512)"/>
+                        <ellipse cx="512" cy="512" rx="400" ry="270" fill="#38A169" opacity="0.9" transform="rotate(28 512 512)"/>
+                        <ellipse cx="512" cy="512" rx="315" ry="185" fill="#FFFFFF" opacity="0.96"/>
+                        <text x="512" y="583" text-anchor="middle" font-family="Inter, Arial, system-ui, sans-serif" font-size="220" font-weight="900" letter-spacing="-8" fill="#D71920">12M</text>
+                    </svg>
+                </div>
+                <p>Inventory Counter</p>
+            </div>
+            <div class="pin-display">
+                <span class="pin-dot"></span>
+                <span class="pin-dot"></span>
+                <span class="pin-dot"></span>
+                <span class="pin-dot"></span>
+            </div>
+            <div class="pin-pad">
+                <button class="pin-btn" data-num="1">1</button>
+                <button class="pin-btn" data-num="2">2</button>
+                <button class="pin-btn" data-num="3">3</button>
+                <button class="pin-btn" data-num="4">4</button>
+                <button class="pin-btn" data-num="5">5</button>
+                <button class="pin-btn" data-num="6">6</button>
+                <button class="pin-btn" data-num="7">7</button>
+                <button class="pin-btn" data-num="8">8</button>
+                <button class="pin-btn" data-num="9">9</button>
+                <button class="pin-btn pin-btn-empty"></button>
+                <button class="pin-btn" data-num="0">0</button>
+                <button class="pin-btn pin-btn-del" data-action="delete">⌫</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Screen 2: Product List with Filters -->
+    <div id="screen-products" class="screen">
+        <div class="products-container">
+            <div class="brand-header">
+                <svg width="24" height="24" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <ellipse cx="512" cy="512" rx="400" ry="270" fill="#007A3D" transform="rotate(-28 512 512)"/>
+                    <ellipse cx="512" cy="512" rx="400" ry="270" fill="#38A169" opacity="0.9" transform="rotate(28 512 512)"/>
+                    <ellipse cx="512" cy="512" rx="315" ry="185" fill="#FFFFFF" opacity="0.96"/>
+                    <text x="512" y="583" text-anchor="middle" font-family="Inter, Arial, system-ui, sans-serif" font-size="220" font-weight="900" letter-spacing="-8" fill="#D71920">12M</text>
+                </svg>
+                <span class="brand-title">Syngenta <small style="font-size:10px;font-weight:700;background:#00843D;color:white;padding:1px 5px;border-radius:3px;vertical-align:middle;margin-left:4px;">v2.0</small></span>
+                <span class="wh-indicator"></span>
+            </div>
+            <div class="products-header">
+                <h2>Select Product</h2>
+                <button class="btn-logout" id="btn-logout">Logout</button>
+            </div>
+            <div class="search-bar">
+                <input type="text" id="search-input" placeholder="Search product..." autocomplete="off">
+            </div>
+            <div class="filters">
+                <select id="filter-product" class="filter-select">
+                    <option value="">All Products</option>
+                </select>
+            </div>
+            <div class="product-list-wrapper">
+                <div class="product-list" id="product-list">
+                    <!-- Products will be rendered here -->
+                </div>
+                <div class="alpha-jump" id="alpha-jump">
+                    <!-- Alphabet quick-jump buttons -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Screen 3: Count Screen -->
+    <div id="screen-count" class="screen">
+        <div class="count-container">
+            <div class="brand-header">
+                <svg width="24" height="24" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <ellipse cx="512" cy="512" rx="400" ry="270" fill="#007A3D" transform="rotate(-28 512 512)"/>
+                    <ellipse cx="512" cy="512" rx="400" ry="270" fill="#38A169" opacity="0.9" transform="rotate(28 512 512)"/>
+                    <ellipse cx="512" cy="512" rx="315" ry="185" fill="#FFFFFF" opacity="0.96"/>
+                    <text x="512" y="583" text-anchor="middle" font-family="Inter, Arial, system-ui, sans-serif" font-size="220" font-weight="900" letter-spacing="-8" fill="#D71920">12M</text>
+                </svg>
+                <span class="brand-title">Syngenta <small style="font-size:10px;font-weight:700;background:#00843D;color:white;padding:1px 5px;border-radius:3px;vertical-align:middle;margin-left:4px;">v2.0</small></span>
+                <span class="wh-indicator"></span>
+            </div>
+            <div class="count-header">
+                <button class="btn-back" id="btn-back">← Back</button>
+                <div class="product-info">
+                    <h2 id="count-product-name">Product Name</h2>
+                    <p id="count-pack-size">50ml</p>
+                </div>
+            </div>
+
+            <div class="month-section">
+                <label class="section-label">Production Month</label>
+                <div class="year-buttons" id="year-buttons">
+                    <button class="year-btn" data-year="5">5</button>
+                    <button class="year-btn" data-year="6">6</button>
+                </div>
+                <div class="month-buttons" id="month-buttons" style="display: none;">
+                    <button class="month-btn" data-month="A">A</button>
+                    <button class="month-btn" data-month="B">B</button>
+                    <button class="month-btn" data-month="C">C</button>
+                    <button class="month-btn" data-month="D">D</button>
+                    <button class="month-btn" data-month="E">E</button>
+                    <button class="month-btn" data-month="F">F</button>
+                    <button class="month-btn" data-month="G">G</button>
+                    <button class="month-btn" data-month="H">H</button>
+                    <button class="month-btn" data-month="I">I</button>
+                    <button class="month-btn" data-month="J">J</button>
+                    <button class="month-btn" data-month="K">K</button>
+                    <button class="month-btn" data-month="L">L</button>
+                    <button class="month-btn month-btn-other" data-month="OTHER">Other</button>
+                </div>
+                <div class="selected-month" id="selected-month"></div>
+            </div>
+
+            <!-- Expiry Month Section -->
+            <div class="month-section expiry-section">
+                <label class="section-label">Expiry Month</label>
+                <div class="year-buttons" id="expiry-year-buttons">
+                    <button class="year-btn" data-year="5">2025</button>
+                    <button class="year-btn" data-year="6">2026</button>
+                    <button class="year-btn" data-year="7">2027</button>
+                    <button class="year-btn" data-year="8">2028</button>
+                    <button class="year-btn" data-year="9">2029</button>
+                    <button class="year-btn" data-year="10">2030</button>
+                </div>
+                <div class="month-buttons expiry-month-buttons" id="expiry-month-buttons" style="display: none;">
+                    <button class="month-btn" data-month="0">Jan</button>
+                    <button class="month-btn" data-month="1">Feb</button>
+                    <button class="month-btn" data-month="2">Mar</button>
+                    <button class="month-btn" data-month="3">Apr</button>
+                    <button class="month-btn" data-month="4">May</button>
+                    <button class="month-btn" data-month="5">Jun</button>
+                    <button class="month-btn" data-month="6">Jul</button>
+                    <button class="month-btn" data-month="7">Aug</button>
+                    <button class="month-btn" data-month="8">Sep</button>
+                    <button class="month-btn" data-month="9">Oct</button>
+                    <button class="month-btn" data-month="10">Nov</button>
+                    <button class="month-btn" data-month="11">Dec</button>
+                </div>
+                <div class="selected-month" id="selected-expiry-month"></div>
+            </div>
+
+            <div class="quantity-section">
+                <!-- Total Quantity Display -->
+                <div class="qty-total-display" id="qty-total-tap" style="cursor: pointer;">
+                    <span class="qty-total-label">Quantity (tap to edit)</span>
+                    <span class="qty-total-value" id="qty-total-value">0</span>
+                    <span class="qty-total-unit">packs</span>
+                </div>
+
+                <!-- +/- Buttons with input -->
+                <div class="qty-controls">
+                    <button class="qty-adj-btn qty-minus" id="qty-minus">Dispatch −</button>
+                    <button class="qty-adj-btn qty-set" id="qty-set">Set</button>
+                    <button class="qty-adj-btn qty-plus" id="qty-plus">Receive +</button>
+                </div>
+                <p class="quantity-tip">Tap green box to enter quantity, then press Receive, Dispatch, or Set</p>
+
+                <!-- Stack Calculator (collapsible) -->
+                <div class="stack-calc">
+                    <button class="stack-calc-toggle" id="stack-calc-toggle">
+                        <span>Stack Calculator</span>
+                        <span class="toggle-arrow" id="toggle-arrow">▸</span>
+                    </button>
+                    <div class="stack-calc-body" id="stack-calc-body" style="display: none;">
+                        <div class="stack-fields">
+                            <div class="stack-field stack-field-wide">
+                                <label>Products per Layer</label>
+                                <input type="number" id="stack-l" value="0" min="0" readonly>
+                            </div>
+                            <span class="stack-op">×</span>
+                            <div class="stack-field stack-field-wide">
+                                <label>Height (Layers)</label>
+                                <input type="number" id="stack-h" value="0" min="0" readonly>
+                            </div>
+                        </div>
+                        <div class="stack-fields">
+                            <div class="stack-field stack-field-wide">
+                                <label>Number of Stacks</label>
+                                <input type="number" id="stack-n" value="1" min="1" readonly>
+                            </div>
+                            <span class="stack-op">+</span>
+                            <div class="stack-field stack-field-wide">
+                                <label>Loose</label>
+                                <input type="number" id="stack-loose" value="0" min="0" readonly>
+                            </div>
+                        </div>
+                        <div class="stack-result">
+                            <span>= </span>
+                            <span id="stack-result-value">0</span>
+                            <span> packs</span>
+                        </div>
+                        <button class="stack-apply-btn" id="stack-apply-btn">Use This Value</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Number Pad Overlay -->
+            <div class="numpad-overlay" id="numpad-overlay" style="display: none;">
+                <div class="numpad-container">
+                    <div class="numpad-header">
+                        <span class="numpad-label">Enter Quantity</span>
+                        <button class="numpad-close" id="numpad-close">✕</button>
+                    </div>
+                    <div class="numpad-display" id="numpad-display">0</div>
+                    <div class="numpad-grid">
+                        <button class="numpad-btn" data-num="1">1</button>
+                        <button class="numpad-btn" data-num="2">2</button>
+                        <button class="numpad-btn" data-num="3">3</button>
+                        <button class="numpad-btn" data-num="4">4</button>
+                        <button class="numpad-btn" data-num="5">5</button>
+                        <button class="numpad-btn" data-num="6">6</button>
+                        <button class="numpad-btn" data-num="7">7</button>
+                        <button class="numpad-btn" data-num="8">8</button>
+                        <button class="numpad-btn" data-num="9">9</button>
+                        <button class="numpad-btn numpad-clear" data-num="clear">C</button>
+                        <button class="numpad-btn" data-num="0">0</button>
+                        <button class="numpad-btn numpad-back" data-num="back">⌫</button>
+                    </div>
+                    <button class="numpad-confirm" id="numpad-confirm">Done</button>
+                </div>
+            </div>
+
+            <button class="save-btn" id="btn-save">Save</button>
+        </div>
+    </div>
+
+    <!-- Screen 4: Confirmation -->
+    <div id="screen-confirm" class="screen">
+        <div class="confirm-container">
+            <div class="confirm-icon">✓</div>
+            <h2>Saved</h2>
+            <p id="confirm-details">Karate 50ml - 6F - 100 packs</p>
+            <button class="btn-continue" id="btn-continue">Continue Counting</button>
+        </div>
+    </div>
+
+    <!-- Screen 5: Inventory List (FEFO View) -->
+    <div id="screen-inventory" class="screen">
+        <div class="inventory-container">
+            <div class="brand-header">
+                <svg width="24" height="24" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <ellipse cx="512" cy="512" rx="400" ry="270" fill="#007A3D" transform="rotate(-28 512 512)"/>
+                    <ellipse cx="512" cy="512" rx="400" ry="270" fill="#38A169" opacity="0.9" transform="rotate(28 512 512)"/>
+                    <ellipse cx="512" cy="512" rx="315" ry="185" fill="#FFFFFF" opacity="0.96"/>
+                    <text x="512" y="583" text-anchor="middle" font-family="Inter, Arial, system-ui, sans-serif" font-size="220" font-weight="900" letter-spacing="-8" fill="#D71920">12M</text>
+                </svg>
+                <span class="brand-title">Syngenta <small style="font-size:10px;font-weight:700;background:#00843D;color:white;padding:1px 5px;border-radius:3px;vertical-align:middle;margin-left:4px;">v2.0</small></span>
+                <span class="wh-indicator"></span>
+            </div>
+            <div class="inventory-header">
+                <button class="btn-back" id="btn-inv-back">← Back</button>
+                <h2>Inventory List</h2>
+            </div>
+            <div class="inventory-search">
+                <input type="text" id="inv-search" placeholder="Search product..." autocomplete="off">
+            </div>
+            <div class="inventory-legend">
+                <span class="legend-item"><span class="legend-dot legend-normal"></span> Normal</span>
+                <span class="legend-item"><span class="legend-dot legend-warning"></span> FEFO — low stock</span>
+            </div>
+            <div class="inventory-table-wrapper">
+                <table class="inventory-table">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Pack</th>
+                            <th>Month</th>
+                            <th>Qty</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventory-tbody">
+                        <!-- Inventory rows will be rendered here -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="inventory-empty" id="inventory-empty" style="display: none;">
+                <p>No inventory data yet</p>
+                <p>Start counting to add items</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Screen 6: Expiring Products -->
+    <div id="screen-twelve-month" class="screen">
+        <div class="twelve-month-container">
+            <div class="brand-header">
+                <svg width="24" height="24" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <ellipse cx="512" cy="512" rx="400" ry="270" fill="#007A3D" transform="rotate(-28 512 512)"/>
+                    <ellipse cx="512" cy="512" rx="400" ry="270" fill="#38A169" opacity="0.9" transform="rotate(28 512 512)"/>
+                    <ellipse cx="512" cy="512" rx="315" ry="185" fill="#FFFFFF" opacity="0.96"/>
+                    <text x="512" y="583" text-anchor="middle" font-family="Inter, Arial, system-ui, sans-serif" font-size="220" font-weight="900" letter-spacing="-8" fill="#D71920">12M</text>
+                </svg>
+                <span class="brand-title">Syngenta <small style="font-size:10px;font-weight:700;background:#00843D;color:white;padding:1px 5px;border-radius:3px;vertical-align:middle;margin-left:4px;">v2.0</small></span>
+                <span class="wh-indicator"></span>
+            </div>
+            <div class="twelve-month-header">
+                <h2>Expiring Soon</h2>
+                <p class="twelve-month-subtitle">Products expiring within 12 months</p>
+            </div>
+            <div class="twelve-month-legend">
+                <span class="legend-item"><span class="legend-dot legend-critical"></span> ≤3 months</span>
+                <span class="legend-item"><span class="legend-dot legend-warning"></span> 4-6 months</span>
+                <span class="legend-item"><span class="legend-dot legend-notice"></span> 7-12 months</span>
+            </div>
+            <div class="twelve-month-table-wrapper">
+                <table class="inventory-table">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Pack</th>
+                            <th>Expiry</th>
+                            <th>Qty</th>
+                            <th>Left</th>
+                        </tr>
+                    </thead>
+                    <tbody id="twelve-month-tbody">
+                        <!-- Expiring products will be rendered here -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="twelve-month-empty" id="twelve-month-empty">
+                <div class="empty-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                </div>
+                <p>No products expiring soon</p>
+                <p>All products have >12 months shelf life</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav" id="bottom-nav" style="display: none;">
+        <button class="nav-btn active" data-screen="products">
+            <span class="nav-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                    <line x1="12" y1="22.08" x2="12" y2="12"/>
+                </svg>
+            </span>
+            <span class="nav-label">Count</span>
+        </button>
+        <button class="nav-btn" data-screen="twelve-month">
+            <span class="nav-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+            </span>
+            <span class="nav-label">Expiry</span>
+        </button>
+        <button class="nav-btn" data-screen="inventory">
+            <span class="nav-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="3" y1="9" x2="21" y2="9"/>
+                    <line x1="9" y1="21" x2="9" y2="9"/>
+                </svg>
+            </span>
+            <span class="nav-label">Inventory</span>
+        </button>
+    </nav>
+
+    <script src="syncManager.js"></script>
+    <script src="products.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

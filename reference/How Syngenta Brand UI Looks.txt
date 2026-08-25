@@ -1,0 +1,128 @@
+# Skill: Syngenta-Branded UI Restyling
+
+## Purpose
+Restyle an existing business application UI so it feels credible for Syngenta: clean, agricultural, operationally serious, mobile-friendly, and easy for warehouse, supply chain, commercial, and customer service users to operate under time pressure.
+
+The agent must preserve product functionality unless explicitly asked to redesign it.
+
+---
+
+## Core Principle
+Syngenta design should feel:
+- Fresh, modern, and agricultural
+- Precise and operational
+- Clear under pressure
+- Trustworthy for business-critical work
+- Green-led, but not visually heavy
+- Accessible and readable on mobile and warehouse devices
+
+Avoid “decorative farming” clichés. The design should serve fast decisions.
+
+---
+
+## Brand Personality
+Use a tone and visual system that communicates:
+- Growth
+- Science
+- Reliability
+- Partnership with growers
+- Sustainability
+- Operational excellence
+
+For a warehouse or inventory UI, the look should be more “professional field operations dashboard” than “consumer marketing website.”
+
+---
+
+## Colour Palette
+
+### Primary Brand Colour
+Use Syngenta green as the anchor:
+
+- Primary Green: `#00843D`
+
+Use this for:
+- primary buttons
+- active tabs
+- selected states
+- headers or header accents
+- important positive status
+- brand logo text if using placeholder logo
+
+### Supporting Greens
+Use lighter and darker greens to create hierarchy:
+
+- Dark Green: `#005A2B`
+  - Use for strong headers, button hover states, dark accents
+- Deep Green: `#003B1F`
+  - Use sparingly for high-contrast text or footer-like areas
+- Light Green: `#E6F4EC`
+  - Use for soft backgrounds, selected panels, success-tinted cards
+- Pale Green: `#F3FAF6`
+  - Use for page background or subtle sections
+
+### Neutral Palette
+Use clean neutrals to keep the UI operational:
+
+- Text Primary: `#1F2933`
+- Text Secondary: `#52616B`
+- Muted Text: `#7B8794`
+- Border: `#D9E2EC`
+- Soft Border: `#E6EEF5`
+- Page Background: `#F6F8F7`
+- Card Background: `#FFFFFF`
+- Table Header Background: `#EEF7F1`
+
+### Functional Colours
+Do not replace functional warning colours if logic depends on them.
+
+For FEFO, expiry, and urgency logic:
+- Critical / urgent red: `#DC2626` or existing red
+- Warning orange: `#F97316` or existing orange
+- Caution yellow: `#FACC15` or existing yellow
+- Success green: `#16A34A`
+- Info blue, if needed: `#2563EB`
+
+Important:
+If the UI already uses red/orange/yellow for FEFO or expiry urgency, preserve the logic and meaning. You may refine shades only if contrast remains strong.
+
+---
+
+## Colour Usage Rules
+
+### Good Usage
+- Use Syngenta green for primary action and navigation.
+- Use green accents to frame the UI, not flood it.
+- Use white cards on soft green/neutral background.
+- Keep operational tables highly readable.
+- Use warning colours only for actual risk or action priority.
+
+### Avoid
+- Too much saturated green everywhere.
+- Low-contrast green text on green backgrounds.
+- Replacing red/orange/yellow urgency indicators with green.
+- Decorative gradients that reduce readability.
+- Consumer-style playful colours in operational screens.
+
+---
+
+## Typography
+
+### Preferred
+Use Syngenta’s official brand font if available locally.
+
+### Closest Google Fonts Alternatives
+If the official font is not available, use one of:
+
+1. `Inter`
+2. `Source Sans 3`
+3. `Noto Sans`
+4. `Arial`, `Helvetica`, sans-serif fallback
+
+Recommended CSS:
+
+```css
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+body {
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
+}
