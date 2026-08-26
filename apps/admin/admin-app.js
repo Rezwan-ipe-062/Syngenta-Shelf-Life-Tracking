@@ -274,15 +274,17 @@ function loadOperatorData() {
 // EXPIRY COMPUTATION
 // ==============================
 function monthsUntilExpiry(expiryStr) {
-    const now = new Date();
-    const parts = expiryStr.split(' ');
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const monthIndex = monthNames.indexOf(parts[0]);
-    const year = parseInt(parts[1]);
-    const expiry = new Date(year, monthIndex, 1);
-    const years = expiry.getFullYear() - now.getFullYear();
-    const months = expiry.getMonth() - now.getMonth();
-    return years * 12 + months;
+    var now = new Date();
+    var expiry;
+    if (typeof expiryStr === 'string' && expiryStr.indexOf(' ') > -1) {
+        var parts = expiryStr.split(' ');
+        var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        expiry = new Date(parseInt(parts[1]), monthNames.indexOf(parts[0]), 1);
+    } else {
+        expiry = new Date(expiryStr);
+    }
+    if (isNaN(expiry.getTime())) return NaN;
+    return (expiry.getFullYear() - now.getFullYear()) * 12 + (expiry.getMonth() - now.getMonth());
 }
 
 function getExpiryLevel(months) {

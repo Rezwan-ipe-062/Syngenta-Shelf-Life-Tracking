@@ -46,7 +46,132 @@ function setupSheet() {
         ss.deleteSheet(defaultSheet);
     }
 
-    SpreadsheetApp.getUi().alert('Setup complete!\n\nTabs: transactions, inventory, snapshots, config\n\nNow deploy as web app.');
+    buildDashboard(ss);
+
+    SpreadsheetApp.getUi().alert('Setup complete!\n\nTabs: transactions, inventory, snapshots, config, dashboard\n\nNow deploy as web app.');
+}
+
+function buildDashboard(ss) {
+    var dash = ss.getSheetByName('dashboard');
+    if (!dash) dash = ss.insertSheet('dashboard');
+    dash.clear();
+
+    var green = '#00843D';
+    var darkGreen = '#005A2B';
+    var lightGreen = '#E8F5E9';
+    var red = '#DC2626';
+    var orange = '#F97316';
+    var yellow = '#EAB308';
+    var blue = '#2563EB';
+
+    // ---- Title ----
+    dash.getRange('A1').setValue('Shelf Life Tracking — Dashboard').setFontSize(16).setFontWeight('bold').setFontColor(darkGreen);
+    dash.getRange('B1').setValue('Auto-refreshes when inventory data changes').setFontStyle('italic').setFontColor('#999999');
+    dash.getRange('A1:B1').setBackground('#F0FFF4');
+
+    // ---- Section 1: Product Summary (A3:B) ----
+    dash.getRange('A3').setValue('PRODUCT SUMMARY').setFontWeight('bold').setFontColor(white_()).setBackground(green);
+    dash.getRange('B3').setBackground(green);
+    dash.getRange('C3').setBackground(green);
+    dash.getRange('A3:C3').setBackground(green).setFontColor('#FFFFFF');
+
+    dash.getRange('A4').setValue('Product').setFontWeight('bold').setBackground(lightGreen);
+    dash.getRange('B4').setValue('Total Qty').setFontWeight('bold').setBackground(lightGreen);
+    dash.getRange('C4').setValue('Batches').setFontWeight('bold').setBackground(lightGreen);
+
+    dash.getRange('A5').setFormula('=IFERROR(SORT(QUERY(inventory!A2:F,"SELECT A, SUM(E) GROUP BY A ORDER BY SUM(E) DESC"),2,FALSE),"No data")');
+    dash.getRange('B5').setFormula('=IFERROR(SORT(QUERY(inventory!A2:F,"SELECT A, SUM(E) GROUP BY A ORDER BY SUM(E) DESC"),2,FALSE),0)');
+    dash.getRange('C5').setFormula('=IFERROR(SORT(QUERY(inventory!A2:F,"SELECT A, COUNT(A) GROUP BY A ORDER BY SUM(E) DESC"),2,FALSE),0)');
+    dash.getRange('A5:C30').setBorder(true, true, true, true, true, true);
+
+    // ---- Section 2: Expiry Buckets (E3:G) ----
+    dash.getRange('E3').setValue('EXPIRY SUMMARY').setFontWeight('bold').setFontColor('#FFFFFF').setBackground(green);
+    dash.getRange('F3').setBackground(green);
+    dash.getRange('G3').setBackground(green);
+
+    dash.getRange('E4').setValue('Bucket').setFontWeight('bold').setBackground(lightGreen);
+    dash.getRange('F4').setValue('Items').setFontWeight('bold').setBackground(lightGreen);
+    dash.getRange('G4').setValue('Total Qty').setFontWeight('bold').setBackground(lightGreen);
+
+    var now = new Date();
+    var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var todayStr = monthNames[now.getMonth()] + ' ' + now.getFullYear();
+
+    dash.getRange('E5').setValue('Expired');
+    dash.getRange('F5').setFormula('=IFERROR(COUNTIFS(inventory!F2:F,"<"&DATE(' + now.getFullYear() + ',' + (now.getMonth()+1) + ',1)),0)');
+    dash.getRange('G5').setFormula('=IFERROR(SUMIFS(inventory!E2:E,inventory!F2:F,"<"&DATE(' + now.getFullYear() + ',' + (now.getMonth()+1) + ',1)),0)');
+    dash.getRange('E5:G5').setFontColor(red);
+
+    dash.getRange('E6').setValue('Critical (≤3mo)');
+    dash.getRange('F6').setFormula('=IFERROR(COUNTIFS(inventory!F2:F,">="&DATE(' + now.getFullYear() + ',' + (now.getMonth()+1) + ',1),inventory!F2:F,"<"&DATE(' + now.getFullYear() + ',' + (now.getMonth()+4) + ',1)),0)');
+    dash.getRange('G6').setFormula('=IFERROR(SUMIFS(inventory!E2:E,inventory!F2:F,">="&DATE(' + now.getFullYear() + ',' + (now.getMonth()+1) + ',1),inventory!F2:F,"<"&DATE(' + now.getFullYear() + ',' + (now.getMonth()+4) + ',1)),0)');
+    dash.getRange('E6:G6').setFontColor(orange);
+
+    dash.getRange('E7').setValue('Warning (4-6mo)');
+    dash.getRange('F7').setFormula('=IFERROR(COUNTIFS(inventory!F2:F,">="&DATE(' + now.getFullYear() + ',' + (now.getMonth()+4) + ',1),inventory!F2:F,"<"&DATE(' + now.getFullYear() + ',' + (now.getMonth()+7) + ',1)),0)');
+    dash.getRange('G7').setFormula('=IFERROR(SUMIFS(inventory!E2:E,inventory!F2:F,">="&DATE(' + now.getFullYear() + ',' + (now.getMonth()+4) + ',1),inventory!F2:F,"<"&DATE(' + now.getFullYear() + ',' + (now.getMonth()+7) + ',1)),0)');
+    dash.getRange('E7:G7').setFontColor(yellow);
+
+    dash.getRange('E8').setValue('Notice (7-12mo)');
+    dash.getRange('F8').setFormula('=IFERROR(COUNTIFS(inventory!F2:F,">="&DATE(' + now.getFullYear() + ',' + (now.getMonth()+7) + ',1),inventory!F2:F,"<"&DATE(' + now.getFullYear() + ',' + (now.getMonth()+13) + ',1)),0)');
+    dash.getRange('G8').setFormula('=IFERROR(SUMIFS(inventory!E2:E,inventory!F2:F,">="&DATE(' + now.getFullYear() + ',' + (now.getMonth()+7) + ',1),inventory!F2:F,"<"&DATE(' + now.getFullYear() + ',' + (now.getMonth()+13) + ',1)),0)');
+
+    dash.getRange('E9').setValue('Distant (13-18mo)');
+    dash.getRange('F9').setFormula('=IFERROR(COUNTIFS(inventory!F2:F,">="&DATE(' + now.getFullYear() + ',' + (now.getMonth()+13) + ',1),inventory!F2:F,"<"&DATE(' + now.getFullYear() + ',' + (now.getMonth()+19) + ',1)),0)');
+    dash.getRange('G9').setFormula('=IFERROR(SUMIFS(inventory!E2:E,inventory!F2:F,">="&DATE(' + now.getFullYear() + ',' + (now.getMonth()+13) + ',1),inventory!F2:F,"<"&DATE(' + now.getFullYear() + ',' + (now.getMonth()+19) + ',1)),0)');
+
+    dash.getRange('E10').setValue('Future (>18mo)');
+    dash.getRange('F10').setFormula('=IFERROR(COUNTIFS(inventory!F2:F,">="&DATE(' + now.getFullYear() + ',' + (now.getMonth()+19) + ',1)),0)');
+    dash.getRange('G10').setFormula('=IFERROR(SUMIFS(inventory!E2:E,inventory!F2:F,">="&DATE(' + now.getFullYear() + ',' + (now.getMonth()+19) + ',1)),0)');
+
+    dash.getRange('E5:G10').setBorder(true, true, true, true, true, true);
+    dash.getRange('G5:G10').setNumberFormat('#,##0');
+
+    // ---- Section 3: Warehouse Summary (E12:G) ----
+    dash.getRange('E12').setValue('WAREHOUSE SUMMARY').setFontWeight('bold').setFontColor('#FFFFFF').setBackground(green);
+    dash.getRange('F12').setBackground(green);
+    dash.getRange('G12').setBackground(green);
+
+    dash.getRange('E13').setValue('Warehouse').setFontWeight('bold').setBackground(lightGreen);
+    dash.getRange('F13').setValue('Items').setFontWeight('bold').setBackground(lightGreen);
+    dash.getRange('G13').setValue('Total Qty').setFontWeight('bold').setBackground(lightGreen);
+
+    dash.getRange('E14').setFormula('=IFERROR(SORT(QUERY(inventory!A2:F,"SELECT F, COUNT(F), SUM(E) GROUP BY F ORDER BY SUM(E) DESC"),2,FALSE),"No data")');
+    dash.getRange('F14').setFormula('=IFERROR(SORT(QUERY(inventory!A2:F,"SELECT F, COUNT(F), SUM(E) GROUP BY F ORDER BY SUM(E) DESC"),3,FALSE),0)');
+    dash.getRange('G14').setFormula('=IFERROR(SORT(QUERY(inventory!A2:F,"SELECT F, COUNT(F), SUM(E) GROUP BY F ORDER BY SUM(E) DESC"),3,FALSE),0)');
+    dash.getRange('E14:G20').setBorder(true, true, true, true, true, true);
+    dash.getRange('G14:G20').setNumberFormat('#,##0');
+
+    // ---- Section 4: Recent Transactions (A33:C) ----
+    dash.getRange('A33').setValue('RECENT TRANSACTIONS (last 20)').setFontWeight('bold').setFontColor('#FFFFFF').setBackground(green);
+    dash.getRange('B33').setBackground(green);
+    dash.getRange('C33').setBackground(green);
+    dash.getRange('D33').setBackground(green);
+    dash.getRange('E33').setBackground(green);
+
+    dash.getRange('A34').setValue('Date').setFontWeight('bold').setBackground(lightGreen);
+    dash.getRange('B34').setValue('Product').setFontWeight('bold').setBackground(lightGreen);
+    dash.getRange('C34').setValue('Type').setFontWeight('bold').setBackground(lightGreen);
+    dash.getRange('D34').setValue('Qty').setFontWeight('bold').setBackground(lightGreen);
+    dash.getRange('E34').setValue('Warehouse').setFontWeight('bold').setBackground(lightGreen);
+
+    dash.getRange('A35').setFormula('=IFERROR(SORT(transactions!A2:K,11,FALSE),"No data")');
+    dash.getRange('A35:E54').setBorder(true, true, true, true, true, true);
+
+    // ---- Column widths ----
+    dash.setColumnWidth(1, 200);
+    dash.setColumnWidth(2, 120);
+    dash.setColumnWidth(3, 100);
+    dash.setColumnWidth(4, 80);
+    dash.setColumnWidth(5, 180);
+    dash.setColumnWidth(6, 80);
+    dash.setColumnWidth(7, 100);
+
+    dash.setFrozenRows(1);
+}
+
+function white_() {
+    return '#FFFFFF';
 }
 
 // ==========================================================

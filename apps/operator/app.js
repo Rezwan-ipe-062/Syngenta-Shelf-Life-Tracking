@@ -612,9 +612,12 @@ function loadFromStorage() {
 // ==================== 12M EXPIRY LOGIC ====================
 
 function expiryStringToDate(str) {
-    var parts = str.split(' ');
-    var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return new Date(parseInt(parts[1]), monthNames.indexOf(parts[0]), 1);
+    if (typeof str === 'string' && str.indexOf(' ') > -1) {
+        var parts = str.split(' ');
+        var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return new Date(parseInt(parts[1]), monthNames.indexOf(parts[0]), 1);
+    }
+    return new Date(str);
 }
 
 function monthsUntilExpiry(expiryStr) {
