@@ -669,13 +669,16 @@ function startAutoRefresh() {
     if (_autoRefreshInterval) clearInterval(_autoRefreshInterval);
     _autoRefreshInterval = setInterval(function () {
         if (window.syncManager && window.syncManager.pullAll) {
+            // Skip if synced less than 30s ago
+            var status = window.syncManager.getSyncStatus();
+            if (status.lastSync && Date.now() - status.lastSync < 30000) return;
             window.syncManager.pullAll().then(function () {
                 loadFromStorage();
                 if (state.currentScreen === 'inventory') renderInventoryList();
                 if (state.currentScreen === 'twelve-month') render12MonthList();
             });
         }
-    }, 15000);
+    }, 30000);
 }
 
 function stopAutoRefresh() {
@@ -691,27 +694,31 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Disable PIN pad until config is ready
-    document.querySelectorAll('.pin-btn[data-num]').forEach(function (b) { b.disabled = true; });
-    document.querySelector('.pin-btn[data-action="delete"]').disabled = true;
+    // Phase 1: Load from localStorage FIRST — app is instantly usable
+    loadFromStorage();
+    initProductList();
+    initPinLogin();
+    initBottomNav();
+    var invSearch = document.getElementById('inv-search');
+    if (invSearch) invSearch.addEventListener('input', function () { renderInventoryList(); });
 
-    var configReady = (window.syncManager && window.syncManager.pullConfig)
-        ? window.syncManager.pullConfig() : Promise.resolve();
-
-    configReady.then(function () {
-        return window.syncManager ? window.syncManager.pullProducts() : Promise.resolve();
-    }).then(function () {
-        loadSyncedProducts();
-        return window.syncManager ? window.syncManager.pullAll() : Promise.resolve();
-    }).then(function () {
-        loadFromStorage();
-        initProductList();
-        if (navigator.onLine && window.syncManager) window.syncManager.syncAll();
-    }).then(function () {
-        document.querySelectorAll('.pin-btn[data-num]').forEach(function (b) { b.disabled = false; });
-        document.querySelector('.pin-btn[data-action="delete"]').disabled = false;
-        initPinLogin();
-    });
+    // Phase 1: Sync in background — don't block login
+    function backgroundSync() {
+        if (!window.syncManager) return Promise.resolve();
+        return window.syncManager.pullConfig().then(function () {
+            return window.syncManager.pullProducts();
+        }).then(function () {
+            loadSyncedProducts();
+            return window.syncManager.pullAll();
+        }).then(function () {
+            loadFromStorage();
+            if (state.currentScreen === 'products') renderProductList();
+            if (state.currentScreen === 'inventory') renderInventoryList();
+            if (state.currentScreen === 'twelve-month') render12MonthList();
+            if (navigator.onLine) window.syncManager.syncAll();
+        }).catch(function () {});
+    }
+    backgroundSync();
 
     document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'visible' && state.operatorName && window.syncManager && window.syncManager.pullAll) {
@@ -722,8 +729,4 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
     });
-
-    initBottomNav();
-    var invSearch = document.getElementById('inv-search');
-    if (invSearch) invSearch.addEventListener('input', function () { renderInventoryList(); });
 });

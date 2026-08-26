@@ -215,6 +215,7 @@ function buildDashboard(ss) {
 //   ping          → { ok: true, time: "..." } — tests connectivity
 //   read          → returns all rows from a sheet as JSON array
 //   readFiltered  → returns first row matching a key=value filter (used for config)
+//   readSince     → returns rows from transactions where client_timestamp > given value
 // ==========================================================
 function doGet(e) {
     var action = e.parameter.action;
@@ -229,6 +230,10 @@ function doGet(e) {
 
     if (action === 'readFiltered') {
         return readFiltered(e.parameter.sheet, e.parameter.key, e.parameter.value);
+    }
+
+    if (action === 'readSince') {
+        return readSince(e.parameter.sheet, e.parameter.since);
     }
 
     return jsonResponse({ error: 'Unknown GET action' });
@@ -289,6 +294,36 @@ function readFiltered(sheetName, key, value) {
         }
     }
     return jsonResponse(null);
+}
+
+// ==========================================================
+// READ SINCE — delta sync for transactions
+// ==========================================================
+// Returns only rows where the client_timestamp column (I, index 8)
+// is greater than the given `since` value. Used by the operator app
+// to fetch only new transactions instead of the full sheet.
+// Falls back to full read if `since` is empty or invalid.
+// ==========================================================
+function readSince(sheetName, since) {
+    if (!since) return readSheet(sheetName);
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) return jsonResponse({ error: 'Sheet not found: ' + sheetName });
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return jsonResponse([]);
+    var lastCol = sheet.getLastColumn();
+    var data = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+    var headers = data[0];
+    var tsIdx = headers.indexOf('client_timestamp');
+    if (tsIdx < 0) return readSheet(sheetName);
+    var rows = data.slice(1).filter(function (row) {
+        return String(row[tsIdx]) > String(since);
+    }).map(function (row) {
+        var obj = {};
+        headers.forEach(function (h, i) { obj[h] = normalizeDateValue(row[i], h); });
+        return obj;
+    });
+    return jsonResponse(rows);
 }
 
 // ==========================================================
@@ -384,20 +419,26 @@ function updateInventoryFromTransactions(ss, newTxRows) {
     if (!invSheet) return;
 
     var invHeaders = ['product', 'pack_size', 'production_month', 'expiry_month', 'quantity', 'warehouse'];
+    var headers_low = invHeaders.map(function (h) { return h.toLowerCase(); });
 
-    // Read ALL transactions from the sheet (not just the new batch)
-    var txSheet = ss.getSheetByName('transactions');
-    if (!txSheet || txSheet.getLastRow() < 2) {
-        // No transactions — clear inventory
-        if (invSheet.getLastRow() > 1) invSheet.deleteRows(2, invSheet.getLastRow() - 1);
-        return;
+    // Read current inventory
+    var lastRow = invSheet.getLastRow();
+    var lastCol = invSheet.getLastColumn();
+    var invData = lastRow >= 1 ? invSheet.getRange(1, 1, lastRow, lastCol).getValues() : [];
+    if (invData.length === 0) {
+        invSheet.getRange(1, 1, 1, invHeaders.length).setValues([invHeaders]);
+        invData = [invHeaders];
     }
-    var allTx = txSheet.getRange(2, 1, txSheet.getLastRow() - 1, txSheet.getLastColumn()).getValues();
 
-    // Aggregate all transactions into inventory items in memory
-    // Key: "product|pack_size|production_month|warehouse"
-    var inv = {};
-    allTx.forEach(function (tx) {
+    // Build index: "product|pack|prodMonth|warehouse" → { row, data }
+    var invIndex = {};
+    for (var r = 1; r < invData.length; r++) {
+        var key = (invData[r][0] || '') + '|' + (invData[r][1] || '') + '|' + (invData[r][2] || '') + '|' + (invData[r][5] || '');
+        invIndex[key] = { row: r + 1, data: invData[r] };
+    }
+
+    // Process only the new transactions
+    newTxRows.forEach(function (tx) {
         var product = tx[0] || '';
         var packSize = tx[1] || '';
         var prodMonth = tx[2] || '';
@@ -407,57 +448,70 @@ function updateInventoryFromTransactions(ss, newTxRows) {
         var warehouse = tx[7] || '';
 
         var key = product + '|' + packSize + '|' + prodMonth + '|' + warehouse;
-
-        if (!inv[key]) {
-            inv[key] = { product: product, packSize: packSize, prodMonth: prodMonth, expiryMonth: expiryMonth, quantity: 0, warehouse: warehouse };
-        }
+        var existing = invIndex[key];
 
         if (type === 'receive') {
-            inv[key].quantity += qty;
+            if (existing) {
+                var curQty = parseInt(existing.data[4]) || 0;
+                invSheet.getRange(existing.row, 5).setValue(curQty + qty); // column E = quantity
+            } else {
+                var newRow = invHeaders.map(function () { return ''; });
+                newRow[headers_low.indexOf('product')] = product;
+                newRow[headers_low.indexOf('pack_size')] = packSize;
+                newRow[headers_low.indexOf('production_month')] = prodMonth;
+                newRow[headers_low.indexOf('expiry_month')] = expiryMonth;
+                newRow[headers_low.indexOf('quantity')] = qty;
+                newRow[headers_low.indexOf('warehouse')] = warehouse;
+                invSheet.appendRow(newRow);
+                var newLastRow = invSheet.getLastRow();
+                var newData = invSheet.getRange(newLastRow, 1, 1, invHeaders.length).getValues()[0];
+                invIndex[key] = { row: newLastRow, data: newData };
+            }
         } else if (type === 'dispatch') {
-            inv[key].quantity = Math.max(0, inv[key].quantity - qty);
-        } else if (type === 'adjustment') {
-            inv[key].quantity = qty;
-        }
-
-        // Keep the most recent expiry_month
-        if (expiryMonth && (!inv[key].expiryMonth || inv[key].expiryMonth !== expiryMonth)) {
-            inv[key].expiryMonth = expiryMonth;
-        }
-    });
-
-    // Filter to items with qty > 0
-    var invRows = [];
-    for (var k in inv) {
-        if (inv[k].quantity > 0) {
-            var i = inv[k];
-            invRows.push([i.product, i.packSize, i.prodMonth, i.expiryMonth, i.quantity, i.warehouse]);
-        }
-    }
-
-    // Clear inventory data rows (keep header)
-    if (invSheet.getLastRow() > 1) {
-        invSheet.deleteRows(2, invSheet.getLastRow() - 1);
-    }
-
-    // Write computed inventory
-    if (invRows.length > 0) {
-        invSheet.getRange(2, 1, invRows.length, invHeaders.length).setValues(invRows);
-
-        // Format date columns as text to prevent Google Sheets auto-converting to Date
-        var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        var dateCols = [3, 4]; // C=production_month, D=expiry_month
-        for (var r = 0; r < invRows.length; r++) {
-            for (var c = 0; c < dateCols.length; c++) {
-                var cell = invSheet.getRange(r + 2, dateCols[c]);
-                var val = cell.getValue();
-                if (val instanceof Date) {
-                    cell.setValue(monthNames[val.getMonth()] + ' ' + val.getFullYear());
+            if (existing) {
+                var curQty = parseInt(existing.data[4]) || 0;
+                var newQty = Math.max(0, curQty - qty);
+                if (newQty <= 0) {
+                    invSheet.deleteRow(existing.row);
+                    delete invIndex[key];
+                    // Rebuild index: row numbers below deleted row shifted down by 1
+                    for (var k in invIndex) {
+                        if (invIndex[k].row > existing.row) invIndex[k].row--;
+                    }
+                } else {
+                    invSheet.getRange(existing.row, 5).setValue(newQty);
                 }
-                cell.setNumberFormat('@'); // Force text format
+            }
+        } else if (type === 'adjustment') {
+            if (existing) {
+                if (qty <= 0) {
+                    invSheet.deleteRow(existing.row);
+                    delete invIndex[key];
+                    for (var k in invIndex) {
+                        if (invIndex[k].row > existing.row) invIndex[k].row--;
+                    }
+                } else {
+                    invSheet.getRange(existing.row, 5).setValue(qty);
+                    // Update expiry if newer
+                    if (expiryMonth) {
+                        var curExpiry = existing.data[3] || '';
+                        if (!curExpiry || String(curExpiry).trim() === '') {
+                            invSheet.getRange(existing.row, 4).setValue(expiryMonth);
+                        }
+                    }
+                }
+            } else if (qty > 0) {
+                var newRow = invHeaders.map(function () { return ''; });
+                newRow[headers_low.indexOf('product')] = product;
+                newRow[headers_low.indexOf('pack_size')] = packSize;
+                newRow[headers_low.indexOf('production_month')] = prodMonth;
+                newRow[headers_low.indexOf('expiry_month')] = expiryMonth;
+                newRow[headers_low.indexOf('quantity')] = qty;
+                newRow[headers_low.indexOf('warehouse')] = warehouse;
+                invSheet.appendRow(newRow);
             }
         }
-    }
+    });
 }
 
 // ==========================================================

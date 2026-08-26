@@ -164,23 +164,72 @@
             }).catch(function () { return []; });
         },
 
+        pullTransactionsSince: function (since) {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('YOUR_DEPLOYMENT_URL') !== -1) return Promise.resolve([]);
+            if (!since) return sync.pullTransactions();
+            return apiGet('readSince', { sheet: 'transactions', since: since }).then(function (data) {
+                return Array.isArray(data) ? data : [];
+            }).catch(function () { return []; });
+        },
+
         pullAll: function () {
-            return sync.pullTransactions().then(function (txRows) {
+            var lastSyncTs = loadRaw('last-sync-ts') || '';
+            var isFullPull = !lastSyncTs;
 
+            var fetchFn = isFullPull
+                ? sync.pullTransactions()
+                : sync.pullTransactionsSince(lastSyncTs);
+
+            return fetchFn.then(function (txRows) {
                 var localData = loadRaw('operator-data') || { transactions: [], inventory: [] };
-
-                // Build cloud transactions (deduped by timestamp)
-                var cloudTx = {};
                 var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                txRows.forEach(function (t) {
-                    var ts = t.client_timestamp || '';
-                    var exp = t.expiry_month || '';
-                    if (typeof exp === 'string' && exp.indexOf('T') > -1) {
-                        var d = new Date(exp);
-                        if (!isNaN(d.getTime())) exp = monthNames[d.getMonth()] + ' ' + d.getFullYear();
-                    }
-                    if (ts && !cloudTx[ts]) {
-                        cloudTx[ts] = {
+
+                if (isFullPull) {
+                    // Full pull: replace all cloud transactions
+                    var cloudTx = {};
+                    txRows.forEach(function (t) {
+                        var ts = t.client_timestamp || '';
+                        var exp = t.expiry_month || '';
+                        if (typeof exp === 'string' && exp.indexOf('T') > -1) {
+                            var d = new Date(exp);
+                            if (!isNaN(d.getTime())) exp = monthNames[d.getMonth()] + ' ' + d.getFullYear();
+                        }
+                        if (ts && !cloudTx[ts]) {
+                            cloudTx[ts] = {
+                                product: t.product || '',
+                                packSize: t.pack_size || '',
+                                productionMonth: t.production_month || '',
+                                expiryMonth: exp,
+                                quantity: parseInt(t.quantity) || 0,
+                                type: t.type || 'receive',
+                                operator: t.operator || '',
+                                warehouse: t.warehouse || '',
+                                timestamp: ts,
+                                date: t.client_date || '',
+                                synced: true
+                            };
+                        }
+                    });
+                    var localPendingTx = (localData.transactions || []).filter(function (t) { return !t.synced; });
+                    var mergedTx = Object.values(cloudTx);
+                    localPendingTx.forEach(function (t) {
+                        if (!cloudTx[t.timestamp]) mergedTx.push(t);
+                    });
+                } else {
+                    // Delta pull: append new cloud txs, replace existing synced ones
+                    var existingTx = localData.transactions || [];
+                    var existingTs = {};
+                    existingTx.forEach(function (t) { existingTs[t.timestamp] = t; });
+
+                    txRows.forEach(function (t) {
+                        var ts = t.client_timestamp || '';
+                        if (!ts) return;
+                        var exp = t.expiry_month || '';
+                        if (typeof exp === 'string' && exp.indexOf('T') > -1) {
+                            var d = new Date(exp);
+                            if (!isNaN(d.getTime())) exp = monthNames[d.getMonth()] + ' ' + d.getFullYear();
+                        }
+                        existingTs[ts] = {
                             product: t.product || '',
                             packSize: t.pack_size || '',
                             productionMonth: t.production_month || '',
@@ -193,21 +242,21 @@
                             date: t.client_date || '',
                             synced: true
                         };
-                    }
-                });
+                    });
+                    var mergedTx = Object.values(existingTs);
+                }
 
-                // Merge: cloud transactions + unmatched local pending
-                var localPendingTx = (localData.transactions || []).filter(function (t) { return !t.synced; });
-                var mergedTx = Object.values(cloudTx);
-                localPendingTx.forEach(function (t) {
-                    if (!cloudTx[t.timestamp]) mergedTx.push(t);
-                });
-
-                // Compute inventory from merged transactions (no stale local copy)
                 var mergedInv = computeInventory(mergedTx);
-
                 var merged = { transactions: mergedTx, inventory: mergedInv };
                 localStorage.setItem('operator-data', JSON.stringify(merged));
+
+                // Track the latest timestamp for next delta sync
+                var maxTs = '';
+                mergedTx.forEach(function (t) {
+                    if (t.synced && t.timestamp > maxTs) maxTs = t.timestamp;
+                });
+                if (maxTs) localStorage.setItem('last-sync-ts', maxTs);
+
                 syncStatus.lastSync = Date.now();
                 syncStatus.error = null;
                 syncStatus.txCount = mergedTx.length;
