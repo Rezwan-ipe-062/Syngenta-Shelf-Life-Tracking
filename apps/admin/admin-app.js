@@ -371,6 +371,30 @@ function updateClock() {
     document.getElementById('current-time').textContent = now.toLocaleString('en-BD', { hour: '2-digit', minute: '2-digit', hour12: true, day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function renderSyncStatus() {
+    var dot = document.getElementById('sync-dot');
+    var text = document.getElementById('sync-status-text');
+    if (!dot || !text || !window.syncManager) return;
+
+    var st = window.syncManager.getSyncStatus();
+    if (!st) return;
+
+    dot.className = 'sync-dot';
+
+    if (st.ok) {
+        dot.classList.add('ok');
+        var ago = st.lastSync ? Math.round((Date.now() - st.lastSync) / 1000) : null;
+        var agoStr = ago !== null ? (ago < 60 ? ago + 's ago' : Math.round(ago / 60) + 'm ago') : '';
+        text.textContent = 'Synced \u00b7 ' + st.txCount + ' tx' + (st.txCount !== 1 ? 's' : '') + (agoStr ? ' \u00b7 ' + agoStr : '');
+    } else if (st.error) {
+        dot.classList.add('error');
+        text.textContent = 'Sync failed \u00b7 ' + st.error.substring(0, 40);
+    } else {
+        dot.classList.add('pending');
+        text.textContent = 'Connecting...';
+    }
+}
+
 // ==============================
 // DASHBOARD
 // ==============================
@@ -1680,18 +1704,29 @@ function renderAll() {
 
 function initApp() {
     renderAll(); // Show localStorage data immediately before async pull
+    renderSyncStatus();
     if (window.syncManager) {
         window.syncManager.init();
-        // Re-push config to sheet on init to fix any corrupted rows
-        saveConfig(CONFIG);
-        (window.syncManager.pullConfig ? window.syncManager.pullConfig() : Promise.resolve()).then(function() {
+        // Ping first to verify Apps Script is reachable
+        window.syncManager.ping().then(function (result) {
+            if (result && result.ok) {
+                console.log('Apps Script ping OK:', result.time);
+            } else {
+                console.error('Apps Script ping failed — GET endpoint may be unreachable');
+            }
+            // Re-push config to sheet on init to fix any corrupted rows
+            saveConfig(CONFIG);
+            return window.syncManager.pullConfig ? window.syncManager.pullConfig() : Promise.resolve();
+        }).then(function() {
             if (window.syncManager.pullAll) {
                 return window.syncManager.pullAll().then(function() {
                     renderAll();
+                    renderSyncStatus();
                     startAutoRefresh();
                 });
             }
             renderAll();
+            renderSyncStatus();
             startAutoRefresh();
         });
     } else {
@@ -1706,6 +1741,7 @@ function startAutoRefresh() {
         if (window.syncManager && window.syncManager.pullAll) {
             window.syncManager.pullAll().then(function() {
                 refreshCurrentScreen();
+                renderSyncStatus();
             });
         }
     }, 15000);
@@ -1715,6 +1751,7 @@ function manualRefresh() {
     if (window.syncManager && window.syncManager.pullAll) {
         window.syncManager.pullAll().then(function() {
             refreshCurrentScreen();
+            renderSyncStatus();
         });
     }
 }
@@ -1736,8 +1773,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (document.getElementById('screen-12m').classList.contains('active')) render12M(currentFilter);
             if (document.getElementById('screen-inventory').classList.contains('active')) renderInventory();
             if (document.getElementById('screen-activity').classList.contains('active')) { renderActivityWarehouseChips(); renderActivity(currentActivityFilter); }
+            renderSyncStatus();
         });
     }
+    // Update sync status "Xs ago" every 10s
+    setInterval(renderSyncStatus, 10000);
 });
 
 // Auto-refresh when operator saves data in another tab
@@ -1747,6 +1787,7 @@ window.addEventListener('storage', function(e) {
         if (document.getElementById('screen-12m').classList.contains('active')) render12M(currentFilter);
         if (document.getElementById('screen-inventory').classList.contains('active')) renderInventory();
         if (document.getElementById('screen-activity').classList.contains('active')) { renderActivityWarehouseChips(); renderActivity(currentActivityFilter); }
+        renderSyncStatus();
     }
 });
 

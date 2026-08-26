@@ -5,6 +5,7 @@
 
     var isSyncing = false;
     var syncCallbacks = [];
+    var syncStatus = { lastSync: null, error: null, txCount: 0, ok: false };
 
     function loadRaw(key) {
         try { var d = localStorage.getItem(key); return d ? JSON.parse(d) : null; } catch (e) { return null; }
@@ -52,6 +53,13 @@
         },
 
         onSync: function (cb) { syncCallbacks.push(cb); },
+
+        getSyncStatus: function () { return syncStatus; },
+
+        ping: function () {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('YOUR_DEPLOYMENT_URL') !== -1) return Promise.resolve({ ok: false });
+            return apiGet('ping').catch(function () { return { ok: false }; });
+        },
 
         _apiPost: apiPost,
 
@@ -194,10 +202,16 @@
 
                 var merged = { transactions: mergedTx, inventory: mergedInv };
                 localStorage.setItem('operator-data', JSON.stringify(merged));
+                syncStatus.lastSync = Date.now();
+                syncStatus.error = null;
+                syncStatus.txCount = mergedTx.length;
+                syncStatus.ok = true;
                 syncCallbacks.forEach(function (cb) { try { cb(); } catch (e) {} });
                 return merged;
             }).catch(function (e) {
-                console.warn('pullAll failed:', e.message || e);
+                console.error('pullAll failed:', e.message || e, e);
+                syncStatus.error = e.message || String(e);
+                syncStatus.ok = false;
                 return loadRaw('operator-data') || { transactions: [], inventory: [] };
             });
         },

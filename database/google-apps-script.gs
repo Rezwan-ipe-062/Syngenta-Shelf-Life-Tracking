@@ -56,6 +56,10 @@ function setupSheet() {
 function doGet(e) {
     var action = e.parameter.action;
 
+    if (action === 'ping') {
+        return jsonResponse({ ok: true, time: new Date().toISOString() });
+    }
+
     if (action === 'read') {
         return readSheet(e.parameter.sheet);
     }

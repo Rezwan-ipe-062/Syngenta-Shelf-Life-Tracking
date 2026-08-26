@@ -168,6 +168,36 @@
             transform: rotate(45deg);
         }
 
+        .sync-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        .sync-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #D9E2EC;
+            flex-shrink: 0;
+        }
+        .sync-dot.ok {
+            background: #16A34A;
+        }
+        .sync-dot.error {
+            background: #DC2626;
+        }
+        .sync-dot.pending {
+            background: #F59E0B;
+            animation: sync-pulse 1.2s ease-in-out infinite;
+        }
+        @keyframes sync-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
         .warehouse-filter-bar {
             display: flex;
             gap: 6px;
