@@ -1342,7 +1342,7 @@ function populateYearSelects() {
     expiryEnd.value = CONFIG.expiryYears.end;
 
     [prodStart, prodEnd].forEach(sel => { sel.innerHTML = ''; });
-    for (let y = 4; y <= 9; y++) {
+    for (let y = 1; y <= 20; y++) {
         const o1 = new Option(y + ' (' + (2020 + y) + ')', y);
         const o2 = new Option(y + ' (' + (2020 + y) + ')', y);
         prodStart.appendChild(o1);
