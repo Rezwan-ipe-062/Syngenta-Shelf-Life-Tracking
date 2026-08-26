@@ -192,7 +192,7 @@ function buildDashboard(ss) {
     dash.getRange('D34').setValue('Qty').setFontWeight('bold').setBackground(lightGreen);
     dash.getRange('E34').setValue('Warehouse').setFontWeight('bold').setBackground(lightGreen);
 
-    dash.getRange('A35').setFormula('=IFERROR(SORT(transactions!A2:K,11,FALSE),"No data")');
+    dash.getRange('A35').setFormula('=IFERROR(QUERY(transactions!A2:K,"SELECT J, A, F, E, H ORDER BY K DESC LIMIT 20",0),"No data")');
     dash.getRange('A35:E54').setBorder(true, true, true, true, true, true);
 
     // ---- Column widths ----
@@ -234,6 +234,19 @@ function doGet(e) {
     return jsonResponse({ error: 'Unknown GET action' });
 }
 
+// Normalizes Date objects in date columns to "Mon YYYY" text format.
+// Google Sheets auto-converts strings like "Jan 2027" to Date objects,
+// which then serialize as ISO strings (e.g. "2027-01-31T18:00:00.000Z").
+// This converts them back to human-readable "Mon YYYY" format.
+var DATE_COLUMNS = ['expiry_month', 'production_month'];
+function normalizeDateValue(val, columnName) {
+    if (DATE_COLUMNS.indexOf(columnName) >= 0 && val instanceof Date) {
+        var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return monthNames[val.getMonth()] + ' ' + val.getFullYear();
+    }
+    return val;
+}
+
 // Reads an entire sheet and returns rows as an array of objects.
 // Each object's keys are the column headers from row 1.
 // Returns [] if the sheet has only headers (no data rows).
@@ -248,7 +261,7 @@ function readSheet(sheetName) {
     var headers = data[0];
     var rows = data.slice(1).map(function (row) {
         var obj = {};
-        headers.forEach(function (h, i) { obj[h] = row[i]; });
+        headers.forEach(function (h, i) { obj[h] = normalizeDateValue(row[i], h); });
         return obj;
     });
     return jsonResponse(rows);
@@ -271,7 +284,7 @@ function readFiltered(sheetName, key, value) {
     for (var i = 1; i < data.length; i++) {
         if (String(data[i][keyIndex]) === String(value)) {
             var obj = {};
-            headers.forEach(function (h, j) { obj[h] = data[i][j]; });
+            headers.forEach(function (h, j) { obj[h] = normalizeDateValue(data[i][j], h); });
             return jsonResponse(obj);
         }
     }
@@ -366,33 +379,25 @@ function handleBatchInsert(body) {
 // using computeInventory() in sync.js. This server-side update is a
 // backup that keeps the inventory tab and the Sheets dashboard in sync.
 // ==========================================================
-function updateInventoryFromTransactions(ss, txRows) {
+function updateInventoryFromTransactions(ss, newTxRows) {
     var invSheet = ss.getSheetByName('inventory');
     if (!invSheet) return;
 
-    var headers = ['product', 'pack_size', 'production_month', 'expiry_month', 'quantity', 'warehouse'];
-    var lastRow = invSheet.getLastRow();
-    var lastCol = invSheet.getLastColumn();
-    var invData = lastRow >= 1 ? invSheet.getRange(1, 1, lastRow, lastCol).getValues() : [];
-    var invHeaders = invData.length > 0 ? invData[0] : headers;
+    var invHeaders = ['product', 'pack_size', 'production_month', 'expiry_month', 'quantity', 'warehouse'];
 
-    // If sheet is empty, write headers first
-    if (invData.length === 0) {
-        invSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-        invHeaders = headers;
+    // Read ALL transactions from the sheet (not just the new batch)
+    var txSheet = ss.getSheetByName('transactions');
+    if (!txSheet || txSheet.getLastRow() < 2) {
+        // No transactions — clear inventory
+        if (invSheet.getLastRow() > 1) invSheet.deleteRows(2, invSheet.getLastRow() - 1);
+        return;
     }
+    var allTx = txSheet.getRange(2, 1, txSheet.getLastRow() - 1, txSheet.getLastColumn()).getValues();
 
-    // Build a lookup index: "product|pack|prodMonth|warehouse" → { row number, row data }
-    var invIndex = {};
-    for (var r = 1; r < invData.length; r++) {
-        var key = buildInvKey(invData[r], invHeaders);
-        invIndex[key] = { row: r + 1, data: invData[r] };
-    }
-
-    var invHeaders_low = invHeaders.map(function (h) { return h.toLowerCase(); });
-
-    // Process each transaction against the inventory
-    txRows.forEach(function (tx) {
+    // Aggregate all transactions into inventory items in memory
+    // Key: "product|pack_size|production_month|warehouse"
+    var inv = {};
+    allTx.forEach(function (tx) {
         var product = tx[0] || '';
         var packSize = tx[1] || '';
         var prodMonth = tx[2] || '';
@@ -402,94 +407,55 @@ function updateInventoryFromTransactions(ss, txRows) {
         var warehouse = tx[7] || '';
 
         var key = product + '|' + packSize + '|' + prodMonth + '|' + warehouse;
-        var existing = invIndex[key];
+
+        if (!inv[key]) {
+            inv[key] = { product: product, packSize: packSize, prodMonth: prodMonth, expiryMonth: expiryMonth, quantity: 0, warehouse: warehouse };
+        }
 
         if (type === 'receive') {
-            if (existing) {
-                // Add qty to existing row
-                var curQty = getQty(existing.data, invHeaders);
-                setQty(invSheet, existing.row, invHeaders, curQty + qty);
-                updateExpiryIfNewer(invSheet, existing.row, invHeaders, expiryMonth);
-            } else {
-                // Create new inventory row
-                var newRow = headers.map(function () { return ''; });
-                newRow[invHeaders_low.indexOf('product')] = product;
-                newRow[invHeaders_low.indexOf('pack_size')] = packSize;
-                newRow[invHeaders_low.indexOf('production_month')] = prodMonth;
-                newRow[invHeaders_low.indexOf('expiry_month')] = expiryMonth;
-                newRow[invHeaders_low.indexOf('quantity')] = qty;
-                newRow[invHeaders_low.indexOf('warehouse')] = warehouse;
-                invSheet.appendRow(newRow);
-                // Update the lookup index with the new row
-                var newLastRow = invSheet.getLastRow();
-                var newData = invSheet.getRange(newLastRow, 1, 1, invHeaders.length).getValues()[0];
-                invIndex[key] = { row: newLastRow, data: newData };
-            }
+            inv[key].quantity += qty;
         } else if (type === 'dispatch') {
-            if (existing) {
-                // Subtract qty; delete row if inventory hits zero
-                var curQty = getQty(existing.data, invHeaders);
-                var newQty = Math.max(0, curQty - qty);
-                if (newQty <= 0) {
-                    invSheet.deleteRow(existing.row);
-                } else {
-                    setQty(invSheet, existing.row, invHeaders, newQty);
-                }
-            }
+            inv[key].quantity = Math.max(0, inv[key].quantity - qty);
         } else if (type === 'adjustment') {
-            if (existing) {
-                // Overwrite qty with exact value; delete row if zero
-                if (qty <= 0) {
-                    invSheet.deleteRow(existing.row);
-                } else {
-                    setQty(invSheet, existing.row, invHeaders, qty);
-                    updateExpiryIfNewer(invSheet, existing.row, invHeaders, expiryMonth);
-                }
-            } else if (qty > 0) {
-                // Create new row for adjustment with positive qty
-                var newRow = headers.map(function () { return ''; });
-                newRow[invHeaders_low.indexOf('product')] = product;
-                newRow[invHeaders_low.indexOf('pack_size')] = packSize;
-                newRow[invHeaders_low.indexOf('production_month')] = prodMonth;
-                newRow[invHeaders_low.indexOf('expiry_month')] = expiryMonth;
-                newRow[invHeaders_low.indexOf('quantity')] = qty;
-                newRow[invHeaders_low.indexOf('warehouse')] = warehouse;
-                invSheet.appendRow(newRow);
-            }
+            inv[key].quantity = qty;
+        }
+
+        // Keep the most recent expiry_month
+        if (expiryMonth && (!inv[key].expiryMonth || inv[key].expiryMonth !== expiryMonth)) {
+            inv[key].expiryMonth = expiryMonth;
         }
     });
-}
 
-// Builds a unique key from an inventory row: "product|pack|prodMonth|warehouse"
-function buildInvKey(row, headers) {
-    var pIdx = headers.indexOf('product');
-    var psIdx = headers.indexOf('pack_size');
-    var pmIdx = headers.indexOf('production_month');
-    var wIdx = headers.indexOf('warehouse');
-    return (row[pIdx] || '') + '|' + (row[psIdx] || '') + '|' + (row[pmIdx] || '') + '|' + (row[wIdx] || '');
-}
+    // Filter to items with qty > 0
+    var invRows = [];
+    for (var k in inv) {
+        if (inv[k].quantity > 0) {
+            var i = inv[k];
+            invRows.push([i.product, i.packSize, i.prodMonth, i.expiryMonth, i.quantity, i.warehouse]);
+        }
+    }
 
-// Reads the quantity value from an inventory row
-function getQty(row, headers) {
-    var idx = headers.indexOf('quantity');
-    return idx >= 0 ? (parseInt(row[idx]) || 0) : 0;
-}
+    // Clear inventory data rows (keep header)
+    if (invSheet.getLastRow() > 1) {
+        invSheet.deleteRows(2, invSheet.getLastRow() - 1);
+    }
 
-// Writes a quantity value to a specific row in the inventory sheet
-function setQty(sheet, rowNum, headers, qty) {
-    var idx = headers.indexOf('quantity');
-    if (idx >= 0) sheet.getRange(rowNum, idx + 1).setValue(qty);
-}
+    // Write computed inventory
+    if (invRows.length > 0) {
+        invSheet.getRange(2, 1, invRows.length, invHeaders.length).setValues(invRows);
 
-// Sets the expiry_month on a row only if it's currently empty
-// (never overwrites an existing expiry date)
-function updateExpiryIfNewer(sheet, rowNum, headers, expiryMonth) {
-    if (!expiryMonth) return;
-    var idx = headers.indexOf('expiry_month');
-    if (idx >= 0) {
-        var current = sheet.getRange(rowNum, idx + 1).getValue();
-        if (!current || String(current).trim() === '') {
-            sheet.getRange(rowNum, idx + 1).setValue(expiryMonth);
+        // Format date columns as text to prevent Google Sheets auto-converting to Date
+        var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var dateCols = [3, 4]; // C=production_month, D=expiry_month
+        for (var r = 0; r < invRows.length; r++) {
+            for (var c = 0; c < dateCols.length; c++) {
+                var cell = invSheet.getRange(r + 2, dateCols[c]);
+                var val = cell.getValue();
+                if (val instanceof Date) {
+                    cell.setValue(monthNames[val.getMonth()] + ' ' + val.getFullYear());
+                }
+                cell.setNumberFormat('@'); // Force text format
+            }
         }
     }
 }
