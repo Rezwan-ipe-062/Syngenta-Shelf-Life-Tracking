@@ -171,14 +171,20 @@
 
                 // Build cloud transactions (deduped by timestamp)
                 var cloudTx = {};
+                var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
                 txRows.forEach(function (t) {
                     var ts = t.client_timestamp || '';
+                    var exp = t.expiry_month || '';
+                    if (typeof exp === 'string' && exp.indexOf('T') > -1) {
+                        var d = new Date(exp);
+                        if (!isNaN(d.getTime())) exp = monthNames[d.getMonth()] + ' ' + d.getFullYear();
+                    }
                     if (ts && !cloudTx[ts]) {
                         cloudTx[ts] = {
                             product: t.product || '',
                             packSize: t.pack_size || '',
                             productionMonth: t.production_month || '',
-                            expiryMonth: t.expiry_month || '',
+                            expiryMonth: exp,
                             quantity: parseInt(t.quantity) || 0,
                             type: t.type || 'receive',
                             operator: t.operator || '',
