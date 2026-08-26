@@ -212,31 +212,17 @@ function loadConfig() {
 
 function saveConfig(cfg) {
     localStorage.setItem('shelf-life-config', JSON.stringify(cfg));
-    if (window.syncManager && window.syncManager._apiPost) {
-        window.syncManager._apiPost({
-            action: 'batchUpsert',
-            sheet: 'config',
-            compositeKey: ['key'],
-            items: [{ key: 'shelf-life-config', value: JSON.stringify(cfg) }]
-        }).catch(function(e) {
-            console.warn('config sync error', e.message || e);
-        });
+    if (window.syncManager && window.syncManager.pushConfig) {
+        window.syncManager.pushConfig(cfg);
     }
 }
 
 function syncProducts() {
-    if (window.syncManager && window.syncManager._apiPost) {
+    if (window.syncManager && window.syncManager.pushProducts) {
         var productList = PRODUCTS.map(function(p) {
             return { name: p.name, pack: p.pack, prefix: p.prefix };
         });
-        window.syncManager._apiPost({
-            action: 'batchUpsert',
-            sheet: 'config',
-            compositeKey: ['key'],
-            items: [{ key: 'product-list', value: JSON.stringify(productList) }]
-        }).catch(function(e) {
-            console.warn('product sync error', e.message || e);
-        });
+        window.syncManager.pushProducts(productList);
     }
 }
 
@@ -917,28 +903,18 @@ function downloadCSV(csv, filename) {
     URL.revokeObjectURL(link.href);
 }
 
-function exportExcel() {
+function exportExcel() { exportCsv(currentFilter, 'Expiry_Report_'); }
+function exportDashboard() { exportCsv(null, 'Dashboard_Expiry_'); }
+function exportCsv(filter, prefix) {
     const opData = loadOperatorData();
     let data = filterByWarehouse((opData.inventory || []).filter(item => item.expiryMonth)).map(item => {
         const monthsLeft = monthsUntilExpiry(item.expiryMonth);
-        const level = getExpiryLevel(monthsLeft);
-        return { product: item.product, pack: item.packSize, code: item.productionMonth || '', expiry: item.expiryMonth, qty: item.quantity, monthsLeft, level: level, range: monthsLeft <= 12 ? '12m' : '18m', warehouse: item.warehouse || '' };
-    });
-    if (currentFilter && currentFilter !== 'all') data = data.filter(d => d.level === currentFilter);
-    let csv = 'Product,Pack,Code,Expiry,Qty,Months Left,Level,Range,Warehouse\n';
-    data.forEach(d => { csv += d.product + ',' + d.pack + ',' + d.code + ',' + d.expiry + ',' + d.qty + ',' + d.monthsLeft + ',' + d.level + ',' + d.range + ',' + d.warehouse + '\n'; });
-    downloadCSV(csv, 'Expiry_Report_' + new Date().toISOString().slice(0, 10) + '.csv');
-}
-
-function exportDashboard() {
-    const opData = loadOperatorData();
-    const data = filterByWarehouse((opData.inventory || []).filter(item => item.expiryMonth)).map(item => {
-        const monthsLeft = monthsUntilExpiry(item.expiryMonth);
         return { product: item.product, pack: item.packSize, code: item.productionMonth || '', expiry: item.expiryMonth, qty: item.quantity, monthsLeft, level: getExpiryLevel(monthsLeft), range: monthsLeft <= 12 ? '12m' : '18m', warehouse: item.warehouse || '' };
     });
+    if (filter && filter !== 'all') data = data.filter(d => d.level === filter);
     let csv = 'Product,Pack,Code,Expiry,Qty,Months Left,Level,Range,Warehouse\n';
     data.forEach(d => { csv += d.product + ',' + d.pack + ',' + d.code + ',' + d.expiry + ',' + d.qty + ',' + d.monthsLeft + ',' + d.level + ',' + d.range + ',' + d.warehouse + '\n'; });
-    downloadCSV(csv, 'Dashboard_Expiry_' + new Date().toISOString().slice(0, 10) + '.csv');
+    downloadCSV(csv, prefix + new Date().toISOString().slice(0, 10) + '.csv');
 }
 
 function exportInventory() {

@@ -70,7 +70,7 @@ function buildDashboard(ss) {
     dash.getRange('A1:B1').setBackground('#F0FFF4');
 
     // ---- Section 1: Product Summary (A3:B) ----
-    dash.getRange('A3').setValue('PRODUCT SUMMARY').setFontWeight('bold').setFontColor(white_()).setBackground(green);
+    dash.getRange('A3').setValue('PRODUCT SUMMARY').setFontWeight('bold').setFontColor('#FFFFFF').setBackground(green);
     dash.getRange('B3').setBackground(green);
     dash.getRange('C3').setBackground(green);
     dash.getRange('A3:C3').setBackground(green).setFontColor('#FFFFFF');
@@ -168,10 +168,6 @@ function buildDashboard(ss) {
     dash.setColumnWidth(7, 100);
 
     dash.setFrozenRows(1);
-}
-
-function white_() {
-    return '#FFFFFF';
 }
 
 // ==========================================================
