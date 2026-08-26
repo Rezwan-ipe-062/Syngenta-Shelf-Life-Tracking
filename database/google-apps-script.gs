@@ -192,7 +192,7 @@ function buildDashboard(ss) {
     dash.getRange('D34').setValue('Qty').setFontWeight('bold').setBackground(lightGreen);
     dash.getRange('E34').setValue('Warehouse').setFontWeight('bold').setBackground(lightGreen);
 
-    dash.getRange('A35').setFormula('=IFERROR(QUERY(transactions!A2:K,"SELECT J, A, F, E, H ORDER BY K DESC LIMIT 20",0),"No data")');
+    dash.getRange('A35').setFormula('=IFERROR(QUERY(transactions!A2:K,"SELECT TEXT(J,\'DD-MMM-YYYY\'), A, F, E, H ORDER BY K DESC LIMIT 20",0),"No data")');
     dash.getRange('A35:E54').setBorder(true, true, true, true, true, true);
 
     // ---- Column widths ----
