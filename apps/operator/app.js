@@ -513,13 +513,13 @@ function renderInventoryList() {
     for (var key in groups) {
         var items = groups[key];
         var first = items[0];
-        html += '<tr class="inv-group-header"><td colspan="4">' + first.product + ' ' + first.packSize + '</td></tr>';
+        html += '<tr class="inv-group-header"><td colspan="5">' + first.product + ' ' + first.packSize + '</td></tr>';
         items.forEach(function (d) {
             var cls = highlighted.has(d.product + '|' + d.packSize + '|' + d.productionMonth) ? ' row-fefo-highlight' : '';
-            html += '<tr class="' + cls + '"><td>' + d.product + '</td><td>' + d.packSize + '</td><td>' + d.productionMonth + '</td><td>' + d.quantity + '</td></tr>';
+            html += '<tr class="' + cls + '"><td>' + d.product + '</td><td>' + d.packSize + '</td><td>' + d.productionMonth + '</td><td>' + (d.expiryMonth || '—') + '</td><td>' + d.quantity + '</td></tr>';
         });
     }
-    tbody.innerHTML = html || '<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--text-muted);">No results</td></tr>';
+    tbody.innerHTML = html || '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-muted);">No results</td></tr>';
 }
 
 // ==================== TRANSACTIONS ====================
@@ -627,6 +627,7 @@ function monthsUntilExpiry(expiryStr) {
 }
 
 function getUrgencyClass(months) {
+    if (months < 0) return 'expired';
     if (months <= 3) return 'critical';
     if (months <= 6) return 'warning';
     if (months <= 12) return 'notice';
@@ -640,7 +641,7 @@ function render12MonthList() {
     var expiringItems = state.inventory.filter(function (item) {
         if (item.warehouse !== state.warehouse || !item.expiryMonth) return false;
         var ml = monthsUntilExpiry(item.expiryMonth);
-        return ml >= 0 && ml <= 12;
+        return ml <= 12;
     });
 
     if (expiringItems.length === 0) { tbody.innerHTML = ''; emptyMsg.style.display = 'flex'; return; }
@@ -656,7 +657,8 @@ function render12MonthList() {
     expiringItems.forEach(function (item) {
         var ml = monthsUntilExpiry(item.expiryMonth);
         var urgency = getUrgencyClass(ml);
-        html += '<tr class="row-' + urgency + '"><td>' + item.product + '</td><td>' + item.packSize + '</td><td>' + item.expiryMonth + '</td><td>' + item.quantity + '</td><td><span class="shelf-badge shelf-badge-' + urgency + '">' + ml + 'M</span></td></tr>';
+        var badgeLabel = urgency === 'expired' ? 'EXPIRED' : ml + 'M';
+        html += '<tr class="row-' + urgency + '"><td>' + item.product + '</td><td>' + item.packSize + '</td><td>' + item.expiryMonth + '</td><td>' + item.quantity + '</td><td><span class="shelf-badge shelf-badge-' + urgency + '">' + badgeLabel + '</span></td></tr>';
     });
     tbody.innerHTML = html;
 }

@@ -1225,6 +1225,11 @@ body {
     border: 1px solid #F59E0B;
 }
 
+.legend-expired {
+    background: #1F2937;
+    border: 1px solid #374151;
+}
+
 .twelve-month-table-wrapper {
     flex: 1;
     overflow-y: auto;
@@ -1279,6 +1284,15 @@ body {
     color: #f57f17;
 }
 
+.row-expired {
+    background: #1F2937;
+}
+
+.row-expired td {
+    color: #F3F4F6;
+    font-weight: 600;
+}
+
 /* Shelf life badge */
 .shelf-badge {
     display: inline-block;
@@ -1303,4 +1317,10 @@ body {
     background: #fef7e0;
     color: #f57f17;
     border: 1px solid #f9ab00;
+}
+
+.shelf-badge-expired {
+    background: #1F2937;
+    color: #F3F4F6;
+    border: 1px solid #374151;
 }

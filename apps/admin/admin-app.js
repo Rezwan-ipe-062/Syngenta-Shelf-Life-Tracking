@@ -32,6 +32,18 @@ function adminLogin() {
 }
 
 // ==============================
+// SETTINGS CHANGE GATE (Head of Customer Service only)
+// ==============================
+const SETTINGS_CODE = '9504';
+
+function settingsCodeOk(action) {
+    const code = prompt('Enter settings code to ' + action + ':');
+    if (code === SETTINGS_CODE) return true;
+    if (code !== null) alert('Incorrect code.');
+    return false;
+}
+
+// ==============================
 // DATA
 // ==============================
 const PRODUCTS = [
@@ -408,11 +420,13 @@ function renderDashboard() {
     const warning = expiryItems.filter(d => d.level === 'warning').length;
     const notice = expiryItems.filter(d => d.level === 'notice').length;
     const distant = expiryItems.filter(d => d.level === 'distant').length;
+    const expired = expiryItems.filter(d => d.level === 'expired').length;
 
     document.getElementById('stat-critical').textContent = critical || 0;
     document.getElementById('stat-warning').textContent = warning || 0;
     document.getElementById('stat-notice').textContent = notice || 0;
     document.getElementById('stat-distant').textContent = distant || 0;
+    document.getElementById('stat-expired').textContent = expired || 0;
 
     const whList = document.getElementById('wh-list');
     document.getElementById('wh-count').textContent = CONFIG.warehouses.length + ' configured';
@@ -580,16 +594,16 @@ function renderCharts(inventory) {
     });
 
     // Chart 3: Expiry Distribution (doughnut)
-    const expiryLevels = { critical: 0, warning: 0, notice: 0, distant: 0, future: 0 };
+    const expiryLevels = { expired: 0, critical: 0, warning: 0, notice: 0, distant: 0, future: 0 };
     inventory.filter(i => i.expiryMonth).forEach(item => {
         const ml = monthsUntilExpiry(item.expiryMonth);
         const level = getExpiryLevel(ml);
         expiryLevels[level] = (expiryLevels[level] || 0) + item.quantity;
     });
 
-    var labels = ['Critical \u22643mo', 'Warning 4-6mo', 'Notice 7-12mo', 'Distant 13-18mo'];
-    var data = [expiryLevels.critical, expiryLevels.warning, expiryLevels.notice, expiryLevels.distant];
-    var colors = ['#DC2626', '#F97316', '#d97706', '#2563EB'];
+    var labels = ['Expired', 'Critical \u22643mo', 'Warning 4-6mo', 'Notice 7-12mo', 'Distant 13-18mo'];
+    var data = [expiryLevels.expired, expiryLevels.critical, expiryLevels.warning, expiryLevels.notice, expiryLevels.distant];
+    var colors = ['#1F2937', '#DC2626', '#F97316', '#d97706', '#2563EB'];
     if (expiryLevels.future > 0) { labels.push('Future >18mo'); data.push(expiryLevels.future); colors.push('#9CA3AF'); }
 
     document.getElementById('chart-expiry-distribution').innerHTML = '<canvas id="chart-expiry-distribution-canvas"></canvas>';
@@ -654,7 +668,7 @@ function render12M(filter) {
 
     tbody.innerHTML = expiryItems.map(d => {
         const cls = d.level === 'distant' ? '' : 'row-' + d.level;
-        const badgeLabel = d.monthsLeft + 'M';
+        const badgeLabel = d.level === 'expired' ? 'EXPIRED' : d.monthsLeft + 'M';
         const badgeCls = d.level === 'distant' ? 'badge-distant' : 'badge-' + d.level;
         return '<tr class="' + cls + '"><td>' + d.product + '</td><td>' + d.pack + '</td><td>' + (d.code || '\u2014') + '</td><td>' + d.expiry + '</td><td>' + d.qty + '</td><td><span class="badge ' + badgeCls + '">' + badgeLabel + '</span></td><td>' + (d.warehouse || '\u2014') + '</td></tr>';
     }).join('');
@@ -798,7 +812,7 @@ function renderInventory() {
         html += '<tr style="background:var(--table-header)"><td colspan="8" style="padding:10px 16px;font-weight:600;font-size:14px;">' + first.product + ' ' + first.pack + '</td></tr>';
         items.forEach(d => {
             const fefoClass = highlighted.has(d.product + '|' + d.pack + '|' + d.prodMonth) ? ' style="background:#FEF3C7;"' : '';
-            var mlDisplay = d.monthsLeft !== null ? '<span class="badge badge-' + (d.level === 'distant' ? 'distant' : d.level === 'future' ? 'future' : d.level) + '">' + d.monthsLeft + 'M</span>' : '\u2014';
+            var mlDisplay = d.monthsLeft !== null ? '<span class="badge badge-' + (d.level === 'distant' ? 'distant' : d.level) + '">' + (d.level === 'expired' ? 'EXPIRED' : d.monthsLeft + 'M') + '</span>' : '\u2014';
             html += '<tr' + fefoClass + '><td>' + d.product + '</td><td>' + d.pack + '</td><td>' + (d.prefix || '\u2014') + '</td><td>' + (d.code || '\u2014') + '</td><td>' + d.prodMonth + '</td><td>' + mlDisplay + '</td><td>' + d.qty + '</td><td>' + (d.warehouse || '\u2014') + '</td></tr>';
         });
     }
@@ -1291,7 +1305,7 @@ function captureMonthlySnapshot() {
 // ==============================
 // DRILLDOWN
 // ==============================
-const DRILLDOWN_LABELS = { critical: 'Expiring \u22643mo', warning: 'Expiring 4-6mo', notice: 'Expiring 7-12mo', distant: 'Expiring 13-18mo' };
+const DRILLDOWN_LABELS = { expired: 'Expired stock', critical: 'Expiring \u22643mo', warning: 'Expiring 4-6mo', notice: 'Expiring 7-12mo', distant: 'Expiring 13-18mo' };
 
 function showDrilldown(level) {
     const opData = loadOperatorData();
@@ -1308,7 +1322,7 @@ function showDrilldown(level) {
     } else {
         tbody.innerHTML = data.map(d => {
             const cls = d.level === 'distant' ? '' : 'row-' + d.level;
-            const badgeLabel = d.monthsLeft + 'M';
+            const badgeLabel = d.level === 'expired' ? 'EXPIRED' : d.monthsLeft + 'M';
             const badgeCls = d.level === 'distant' ? 'badge-distant' : 'badge-' + d.level;
             return '<tr class="' + cls + '"><td>' + d.product + '</td><td>' + d.pack + '</td><td>' + d.code + '</td><td>' + d.expiry + '</td><td>' + d.qty + '</td><td><span class="badge ' + badgeCls + '">' + badgeLabel + '</span></td><td>' + (d.warehouse || '\u2014') + '</td></tr>';
         }).join('');
@@ -1395,6 +1409,7 @@ function renderOperatorPinList() {
 }
 
 function addOperatorPin() {
+    if (!settingsCodeOk('add an operator PIN')) return;
     const nameEl = document.getElementById('new-op-name');
     const pinEl = document.getElementById('new-op-pin');
     const whEl = document.getElementById('new-op-warehouse');
@@ -1412,6 +1427,7 @@ function addOperatorPin() {
 }
 
 function removeOperatorPin(idx) {
+    if (!settingsCodeOk('remove an operator')) return;
     if (!confirm('Remove operator "' + CONFIG.operatorPins[idx].name + '"?')) return;
     CONFIG.operatorPins.splice(idx, 1);
     saveConfig(CONFIG);
@@ -1419,6 +1435,7 @@ function removeOperatorPin(idx) {
 }
 
 function saveExpiryYears() {
+    if (!settingsCodeOk('change expiry years')) return;
     const start = parseInt(document.getElementById('setting-expiry-start').value);
     const end = parseInt(document.getElementById('setting-expiry-end').value);
     if (start >= end) { alert('End year must be after start year'); return; }
@@ -1429,6 +1446,7 @@ function saveExpiryYears() {
 }
 
 function saveProdYears() {
+    if (!settingsCodeOk('change production years')) return;
     const start = parseInt(document.getElementById('setting-prod-start').value);
     const end = parseInt(document.getElementById('setting-prod-end').value);
     if (start >= end) { alert('End year must be after start year'); return; }
@@ -1443,7 +1461,7 @@ function renderWarehouseList() {
     list.innerHTML = CONFIG.warehouses.map((w, i) =>
         '<div class="settings-wh-row"><span class="wh-name">' + w + '</span>' +
         '<div style="display:flex;gap:6px;">' +
-        '<button class="wh-delete-data" onclick="clearLocalDataForWarehouse(\'' + w.replace(/'/g, "\\'") + '\')">Delete Data</button>' +
+        '<button class="wh-delete-data" onclick="deleteLocalDataForWarehouse(\'' + w.replace(/'/g, "\\'") + '\')">Delete Data</button>' +
         '<button class="wh-remove" onclick="removeWarehouse(' + i + ')">Remove</button></div></div>'
     ).join('');
 
@@ -1456,6 +1474,7 @@ function renderWarehouseList() {
 }
 
 function addWarehouse() {
+    if (!settingsCodeOk('add a warehouse')) return;
     const input = document.getElementById('new-warehouse');
     const name = input.value.trim();
     if (!name) return;
@@ -1467,6 +1486,7 @@ function addWarehouse() {
 }
 
 function removeWarehouse(idx) {
+    if (!settingsCodeOk('remove a warehouse')) return;
     if (CONFIG.warehouses.length <= 1) { alert('Must have at least one warehouse'); return; }
     if (!confirm('Remove "' + CONFIG.warehouses[idx] + '"?')) return;
     CONFIG.warehouses.splice(idx, 1);
@@ -1475,6 +1495,7 @@ function removeWarehouse(idx) {
 }
 
 function resetConfig() {
+    if (!settingsCodeOk('reset settings to defaults')) return;
     if (!confirm('Reset all settings to defaults?')) return;
     localStorage.removeItem('shelf-life-config');
     CONFIG = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
@@ -1487,6 +1508,7 @@ function resetConfig() {
 // DANGER ZONE: Clear data actions
 // ==============================
 function clearLocalData() {
+    if (!settingsCodeOk('delete local data')) return;
     if (!confirm('Delete ALL local data (inventory, transactions) from this browser? This cannot be undone.')) return;
     if (!confirm('Are you sure? All counting data will be permanently removed from this device.')) return;
     localStorage.removeItem('operator-data');
@@ -1498,6 +1520,11 @@ function clearLocalData() {
     renderActivity('all');
     renderProducts();
     alert('Local data cleared. Note: auto-sync may re-download data from the cloud. Use "Clear Cloud Data" first to fully reset.');
+}
+
+function deleteLocalDataForWarehouse(warehouse) {
+    if (!settingsCodeOk("delete this warehouse's data")) return;
+    clearLocalDataForWarehouse(warehouse);
 }
 
 function clearLocalDataForWarehouse(warehouse) {
@@ -1517,6 +1544,7 @@ function clearLocalDataForWarehouse(warehouse) {
 }
 
 function clearCloudData() {
+    if (!settingsCodeOk('clear all cloud data')) return;
     if (!confirm('Delete ALL data from the cloud? This will clear: transactions, inventory, monthly_snapshots, config.')) return;
     if (!confirm('FINAL WARNING: This removes ALL data from the cloud database. Continue?')) return;
 
@@ -1541,6 +1569,7 @@ function clearCloudData() {
 }
 
 function clearCloudByWarehouse() {
+    if (!settingsCodeOk('clear warehouse data')) return;
     var sel = document.getElementById('clean-warehouse-select');
     if (!sel || !sel.value) { alert('Select a warehouse first'); return; }
     var warehouse = sel.value;
@@ -1561,6 +1590,7 @@ function clearCloudByWarehouse() {
 }
 
 function clearCloudByDateRange() {
+    if (!settingsCodeOk('clear date-range data')) return;
     var startEl = document.getElementById('clean-date-start');
     var endEl = document.getElementById('clean-date-end');
     if (!startEl || !endEl || !startEl.value || !endEl.value) { alert('Select start and end dates'); return; }

@@ -123,6 +123,11 @@
                             <div class="stat-value" id="stat-distant" style="color:#2563EB;">0</div>
                             <div class="stat-sub">Distant</div>
                         </div>
+                        <div class="stat-card clickable" onclick="showDrilldown('expired')">
+                            <div class="stat-label">Expired</div>
+                            <div class="stat-value" id="stat-expired" style="color:#1F2937;">0</div>
+                            <div class="stat-sub">Expired stock</div>
+                        </div>
                     </div>
 
                     <div class="filter-bar chart-filter-bar" id="chart-filter-bar">
@@ -242,6 +247,7 @@
                         <button class="filter-btn" onclick="filter12M('warning', this)" style="border-color:#F97316;color:#F97316;">Warning 4-6mo</button>
                         <button class="filter-btn" onclick="filter12M('notice', this)" style="border-color:#d97706;color:#d97706;">Notice 7-12mo</button>
                         <button class="filter-btn" onclick="filter12M('distant', this)" style="border-color:#2563EB;color:#2563EB;">Distant 13-18mo</button>
+                        <button class="filter-btn" onclick="filter12M('expired', this)" style="border-color:#1F2937;color:#1F2937;">Expired</button>
                         <span class="filter-count" id="filter-count">Showing 18 items</span>
                         <button class="filter-btn export-btn" onclick="exportExcel()">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
