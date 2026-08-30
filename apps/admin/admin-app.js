@@ -2,6 +2,7 @@
 // PASSWORD GATE
 // ==============================
 const ADMIN_PASSWORD = '9876';
+const revealedPins = new Set();
 
 function checkAdminAuth() {
     const authed = sessionStorage.getItem('admin-authenticated');
@@ -632,6 +633,7 @@ function renderCharts(inventory) {
 // 12M & 18M TABLE
 // ==============================
 let currentFilter = 'all';
+let currentInvFilter = 'all';
 
 function render12M(filter) {
     const tbody = document.getElementById('tbody-12m');
@@ -679,6 +681,13 @@ function filter12M(filter, btn) {
     document.querySelectorAll('#screen-12m .filter-btn').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
     render12M(filter);
+}
+
+function filterInventory(filter, btn) {
+    currentInvFilter = filter;
+    document.querySelectorAll('#screen-inventory .filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    renderInventory(filter);
 }
 
 // ==============================
@@ -749,9 +758,11 @@ function filterActivity(filter, btn) {
 // ==============================
 // INVENTORY TABLE
 // ==============================
-function renderInventory() {
+function renderInventory(filter) {
+    const effFilter = filter || currentInvFilter;
     const search = document.getElementById('inv-search').value.toLowerCase();
     const tbody = document.getElementById('tbody-inventory');
+    const countEl = document.getElementById('inv-filter-count');
     const opData = loadOperatorData();
     let data = filterByWarehouse((opData.inventory || []).map(item => {
         var ml = item.expiryMonth ? monthsUntilExpiry(item.expiryMonth) : null;
@@ -771,6 +782,12 @@ function renderInventory() {
     if (search) {
         data = data.filter(d => d.product.toLowerCase().includes(search) || d.code.toLowerCase().includes(search));
     }
+
+    if (effFilter !== 'all') {
+        data = data.filter(d => d.level === effFilter);
+    }
+
+    if (countEl) countEl.textContent = 'Showing ' + data.length + ' items';
 
     data.sort((a, b) => {
         const nameCmp = a.product.localeCompare(b.product);
@@ -800,7 +817,7 @@ function renderInventory() {
 
     if (data.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">' +
-            (search ? 'No results found' : 'No inventory data yet. Start counting from the operator app.') +
+            (search ? 'No results found' : (effFilter !== 'all' ? 'No items match this filter.' : 'No inventory data yet. Start counting from the operator app.')) +
             '</td></tr>';
         return;
     }
@@ -1402,10 +1419,28 @@ function renderOperatorPinList() {
         ? '<div style="font-size:13px;color:var(--text-muted);padding:8px 0;">No operators configured. Add one below to enable login.</div>'
         : CONFIG.operatorPins.map((op, i) =>
             '<div class="settings-wh-row">' +
-            '<span class="wh-name">' + op.name + ' \u2014 <code>' + op.pin + '</code> \u2014 ' + (op.warehouse || CONFIG.warehouses[0]) + '</span>' +
+            '<span class="wh-name">' + op.name + ' \u2014 <code>' + (revealedPins.has(op.pin) ? op.pin : '****') + '</code> \u2014 ' + (op.warehouse || CONFIG.warehouses[0]) + '</span>' +
+            '<button class="wh-show" onclick="togglePinVisibility(' + i + ')">' + (revealedPins.has(op.pin) ? 'Hide' : 'Show') + '</button>' +
             '<button class="wh-remove" onclick="removeOperatorPin(' + i + ')">Remove</button>' +
             '</div>'
         ).join('');
+}
+
+function togglePinVisibility(i) {
+    const op = CONFIG.operatorPins && CONFIG.operatorPins[i];
+    if (!op) return;
+    if (revealedPins.has(op.pin)) {
+        revealedPins.delete(op.pin);
+        renderOperatorPinList();
+        return;
+    }
+    const p = prompt('Enter admin password (9876) to reveal operator PIN');
+    if (p === ADMIN_PASSWORD) {
+        revealedPins.add(op.pin);
+        renderOperatorPinList();
+    } else {
+        alert('Incorrect password.');
+    }
 }
 
 function addOperatorPin() {

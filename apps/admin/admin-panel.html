@@ -385,6 +385,15 @@
                         </button>
                         <button class="add-product-btn" onclick="showScreen('screen-products', document.querySelector('.sidebar-link[onclick*=\"screen-products\"]'))">Manage Products</button>
                     </div>
+                    <div class="filter-bar">
+                        <button class="filter-btn active" onclick="filterInventory('all', this)">All</button>
+                        <button class="filter-btn" onclick="filterInventory('critical', this)" style="border-color:#DC2626;color:#DC2626;">Critical ≤3mo</button>
+                        <button class="filter-btn" onclick="filterInventory('warning', this)" style="border-color:#F97316;color:#F97316;">Warning 4-6mo</button>
+                        <button class="filter-btn" onclick="filterInventory('notice', this)" style="border-color:#d97706;color:#d97706;">Notice 7-12mo</button>
+                        <button class="filter-btn" onclick="filterInventory('distant', this)" style="border-color:#2563EB;color:#2563EB;">Distant 13-18mo</button>
+                        <button class="filter-btn" onclick="filterInventory('expired', this)" style="border-color:#1F2937;color:#1F2937;">Expired</button>
+                        <span class="filter-count" id="inv-filter-count">Showing 0 items</span>
+                    </div>
                     <div class="table-wrap">
                         <table class="admin-table">
                             <thead>

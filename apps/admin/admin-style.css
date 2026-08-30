@@ -340,6 +340,16 @@
             color:var(--red);
         }
         .settings-wh-row .wh-remove:hover { background:#fee2e2; }
+        .settings-wh-row .wh-show {
+            background:none;
+            border:1px solid var(--border);
+            border-radius:6px;
+            padding:4px 10px;
+            font-size:12px;
+            cursor:pointer;
+            color:var(--text-muted);
+        }
+        .settings-wh-row .wh-show:hover { background:var(--table-header); }
         .settings-wh-row .wh-delete-data {
             background:none;
             border:1px solid #DC2626;
