@@ -365,19 +365,20 @@ function initCountScreen() {
 
     document.getElementById('qty-plus').onclick = function () {
         var qty = parseInt(qtyTotalValue.textContent) || 0;
-        if (qty === 0) return;
+        if (qty === 0) { showToast('Set the quantity first'); return; }
         doTransaction('receive', qty);
     };
 
     document.getElementById('qty-minus').onclick = function () {
         var qty = parseInt(qtyTotalValue.textContent) || 0;
-        if (qty === 0) return;
+        if (qty === 0) { showToast('Set the quantity first'); return; }
         doTransaction('dispatch', qty);
     };
 
     document.getElementById('qty-set').onclick = function () {
         var qty = parseInt(qtyTotalValue.textContent);
         if (qty < 0) return;
+        if (qty === 0) { showToast('Set the quantity first'); return; }
         if (confirm('Set ' + state.selectedProduct + ' ' + state.selectedPackSize + ' to ' + qty + ' cartons?')) {
             doTransaction('adjustment', qty);
         }
@@ -524,13 +525,27 @@ function renderInventoryList() {
 
 // ==================== TRANSACTIONS ====================
 
-function canSave() {
-    return state.selectedYear !== null && state.selectedMonth !== null
-        && state.selectedExpiryYear !== null && state.selectedExpiryMonth !== null;
+function showToast(message) {
+    var existing = document.getElementById('slt-toast');
+    if (existing) existing.remove();
+    var toast = document.createElement('div');
+    toast.id = 'slt-toast';
+    toast.textContent = message;
+    toast.style.cssText = 'position:fixed;left:50%;bottom:120px;transform:translateX(-50%);background:rgba(20,30,25,0.95);color:#fff;padding:12px 20px;border-radius:10px;font-size:15px;font-weight:600;z-index:10000;max-width:85%;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.3);animation:fadein 0.2s;';
+    document.body.appendChild(toast);
+    setTimeout(function () { toast.remove(); }, 2500);
 }
 
 function doTransaction(type, qty) {
-    if (!canSave()) return;
+    var missing = [];
+    if (state.selectedYear === null) missing.push('Production Year');
+    if (state.selectedMonth === null) missing.push('Production Month');
+    if (state.selectedExpiryYear === null) missing.push('Expiry Year');
+    if (state.selectedExpiryMonth === null) missing.push('Expiry Month');
+    if (missing.length) {
+        showToast('Select: ' + missing.join(', '));
+        return;
+    }
 
     var prodMonthCode = state.selectedYear + state.selectedMonth;
     var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -666,6 +681,7 @@ function render12MonthList() {
 // ==================== INIT ====================
 
 var _autoRefreshInterval = null;
+var _autoRefreshCount = 0;
 
 function startAutoRefresh() {
     if (_autoRefreshInterval) clearInterval(_autoRefreshInterval);
@@ -674,7 +690,10 @@ function startAutoRefresh() {
             // Skip if synced less than 30s ago
             var status = window.syncManager.getSyncStatus();
             if (status.lastSync && Date.now() - status.lastSync < 30000) return;
-            window.syncManager.pullAll().then(function () {
+            // Full pull every 5th refresh so edits made in the admin panel
+            // (which keep their client_timestamp) eventually reach every device.
+            var forceFull = (_autoRefreshCount++ % 5) === 4;
+            window.syncManager.pullAll(forceFull).then(function () {
                 loadFromStorage();
                 if (state.currentScreen === 'inventory') renderInventoryList();
                 if (state.currentScreen === 'twelve-month') render12MonthList();

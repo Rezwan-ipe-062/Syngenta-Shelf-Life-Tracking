@@ -196,9 +196,9 @@
             }).catch(function () { return []; });
         },
 
-        pullAll: function () {
+        pullAll: function (force) {
             var lastSyncTs = loadRaw('last-sync-ts') || '';
-            var isFullPull = !lastSyncTs;
+            var isFullPull = !!(force || !lastSyncTs);
 
             var fetchFn = isFullPull
                 ? sync.pullTransactions()
@@ -295,6 +295,10 @@
             });
         },
 
+        pullAllForce: function () {
+            return sync.pullAll(true);
+        },
+
         // =====================================================
         // CONFIG
         // =====================================================
@@ -353,6 +357,20 @@
                 compositeKey: ['key'],
                 items: [{ key: 'product-list', value: JSON.stringify(productList) }]
             }).catch(function (e) { console.warn('pushProducts error', e.message || e); });
+        },
+
+        // Overwrites transaction fields in place, matched by client_timestamp
+        // (server rebuilds the inventory tab). Used by the admin Edit screen.
+        updateTransactions: function (items) {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('YOUR_DEPLOYMENT_URL') !== -1) return Promise.resolve({ success: false, updated: 0 });
+            return apiPost({
+                action: 'updateTransactions',
+                sheet: 'transactions',
+                items: items
+            }).catch(function (e) {
+                console.warn('updateTransactions error', e.message || e);
+                return { success: false, updated: 0 };
+            });
         },
 
         // =====================================================

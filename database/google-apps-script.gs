@@ -361,6 +361,10 @@ function doPost(e) {
         return handleClearByDateRange(body.start, body.end);
     }
 
+    if (action === 'updateTransactions') {
+        return handleUpdateTransactions(body);
+    }
+
     return jsonResponse({ error: 'Unknown POST action' });
 }
 
@@ -676,6 +680,79 @@ function handleClearByDateRange(startDate, endDate) {
     }
 
     return jsonResponse({ success: true, transactionsRemoved: removedCount });
+}
+
+// ==========================================================
+// UPDATE TRANSACTIONS — edit an existing transaction in place
+// ==========================================================
+// The admin "Edit Transactions" screen edits the source transaction:
+// rows are matched by client_timestamp (unchanged, so history order is
+// preserved) and only product/pack_size/production_month/expiry_month/
+// quantity are overwritten. server_time is bumped so the Sheets dashboard
+// reflects the edit. The inventory tab is then rebuilt from all
+// transactions because product/pack/productionMonth changes move quantity
+// between inventory rows.
+//
+// Body: { action: 'updateTransactions', items: [{ client_timestamp, product, ... }] }
+// ==========================================================
+function handleUpdateTransactions(body) {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var txSheet = ss.getSheetByName('transactions');
+    if (!txSheet) return jsonResponse({ error: 'Sheet not found: transactions' });
+
+    var items = body.items || [];
+    if (items.length === 0) return jsonResponse({ success: true, updated: 0 });
+
+    var lastRow = txSheet.getLastRow();
+    var lastCol = txSheet.getLastColumn();
+    var data = lastRow >= 1 ? txSheet.getRange(1, 1, lastRow, lastCol).getValues() : [];
+    var headers = data[0];
+    var tsIdx = headers.indexOf('client_timestamp');
+    if (tsIdx < 0) return jsonResponse({ error: 'client_timestamp column missing' });
+
+    var FIELDS = ['product', 'pack_size', 'production_month', 'expiry_month', 'quantity'];
+    var writeCols = {};
+    var writeVals = [];
+    var updated = 0;
+
+    FIELDS.forEach(function (f) { writeCols[f] = headers.indexOf(f); });
+    var serverIdx = headers.indexOf('server_time');
+
+    items.forEach(function (item) {
+        var ts = String(item.client_timestamp || '');
+        if (!ts) return;
+        var found = -1;
+        for (var r = 1; r < data.length; r++) {
+            if (String(data[r][tsIdx]) === ts) { found = r; break; }
+        }
+        if (found < 0) return;
+
+        FIELDS.concat(['server_time']).forEach(function (f) {
+            var idx = f === 'server_time' ? serverIdx : writeCols[f];
+            if (idx < 0) return;
+            writeVals.push({ r: found + 1, c: idx + 1, v: f === 'server_time' ? new Date() : item[f] });
+        });
+        updated++;
+    });
+
+    // Batch-write all cells in one go for speed
+    writeVals.forEach(function (v) { txSheet.getRange(v.r, v.c).setValue(v.v); });
+
+    // Rebuild the inventory tab from all transactions (product key may have changed)
+    if (txSheet.getLastRow() >= 2) {
+        var allTx = txSheet.getRange(2, 1, txSheet.getLastRow() - 1, txSheet.getLastColumn()).getValues();
+    } else {
+        allTx = [];
+    }
+    var invSheet = ss.getSheetByName('inventory');
+    if (invSheet && invSheet.getLastRow() > 1) {
+        invSheet.deleteRows(2, invSheet.getLastRow() - 1);
+    }
+    if (allTx.length > 0) {
+        updateInventoryFromTransactions(ss, allTx);
+    }
+
+    return jsonResponse({ success: true, updated: updated });
 }
 
 // ==========================================================

@@ -1,17 +1,28 @@
 // ==============================
-// PASSWORD GATE
+// AUTH GATE — master PIN or per-warehouse PIN
 // ==============================
-const ADMIN_PASSWORD = '9876';
+// Master PIN (9504) unlocks every warehouse. A warehouse PIN binds the
+// session to that warehouse (role 'officer'): data is scoped to it, and the
+// Settings/Edit gates only accept the officer's own warehouse PIN or the
+// master PIN.
+const MASTER_PIN = '9504';
+const WAREHOUSE_PINS = { Bogura: '2947', Chittagong: '5185', Jessore: '3639', Gazipur: '8274' };
+
 const revealedPins = new Set();
 
+function getSession() {
+    try { return JSON.parse(sessionStorage.getItem('admin-session')); } catch (e) { return null; }
+}
+
+function setSession(s) { sessionStorage.setItem('admin-session', JSON.stringify(s)); }
+
 function checkAdminAuth() {
-    const authed = sessionStorage.getItem('admin-authenticated');
-    if (authed === 'true') {
-        const overlay = document.getElementById('admin-login-overlay');
+    const s = getSession();
+    const overlay = document.getElementById('admin-login-overlay');
+    if (s && s.role) {
         if (overlay) overlay.style.display = 'none';
         return true;
     }
-    const overlay = document.getElementById('admin-login-overlay');
     if (overlay) overlay.style.display = 'flex';
     return false;
 }
@@ -19,29 +30,66 @@ function checkAdminAuth() {
 function adminLogin() {
     const input = document.getElementById('admin-login-pin');
     const error = document.getElementById('admin-login-error');
-    if (input && input.value === ADMIN_PASSWORD) {
-        sessionStorage.setItem('admin-authenticated', 'true');
+    const pin = input ? input.value.trim() : '';
+    let session = null;
+    if (pin === MASTER_PIN) {
+        session = { role: 'master' };
+    } else if (pin) {
+        for (const wh in WAREHOUSE_PINS) {
+            if (WAREHOUSE_PINS[wh] === pin) { session = { role: 'officer', warehouse: wh }; break; }
+        }
+    }
+    if (session) {
+        setSession(session);
         document.getElementById('admin-login-overlay').style.display = 'none';
         initApp();
     } else {
         if (error) {
             error.style.display = 'block';
-            error.textContent = 'Incorrect password';
+            error.textContent = 'Incorrect PIN';
         }
         if (input) input.value = '';
     }
 }
 
+// Scope for warehouse-officer sessions; master sees everything.
+function sessionScope() {
+    const s = getSession();
+    return (s && s.role === 'officer') ? s.warehouse : null;
+}
+
 // ==============================
-// SETTINGS CHANGE GATE (Head of Customer Service only)
+// SETTINGS / EDIT CHANGE GATE
 // ==============================
-const SETTINGS_CODE = '9504';
+// Accepts the master PIN, or — for an officer session — only that officer's
+// own warehouse PIN. An officer's PIN never unlocks a different warehouse.
+function gateCheck(action) {
+    const s = getSession();
+    if (!s || !s.role) return false;
+    const code = prompt('Enter PIN to ' + action + ':');
+    if (code === null) return false;
+    if (code === MASTER_PIN) return true;
+    if (s.warehouse && WAREHOUSE_PINS[s.warehouse] === code) return true;
+    alert('Incorrect PIN.');
+    return false;
+}
 
 function settingsCodeOk(action) {
-    const code = prompt('Enter settings code to ' + action + ':');
-    if (code === SETTINGS_CODE) return true;
-    if (code !== null) alert('Incorrect code.');
-    return false;
+    return gateCheck(action);
+}
+
+// ==============================
+// WAREHOUSE NORMALIZATION
+// ==============================
+// Only these warehouses belong to this project. The live config row once
+// carried warehouses from a different project (Lalmonirhat/Dinajpur/etc.); on
+// every admin load we force the 4 canonical warehouses and re-push the config
+// so those foreign names stop re-surfacing through mergeConfig unions.
+const CANONICAL_WAREHOUSES = ['Bogura', 'Chittagong', 'Jessore', 'Gazipur'];
+
+function normalizeWarehouses() {
+    CONFIG.warehouses = CANONICAL_WAREHOUSES.slice();
+    saveConfig(CONFIG);
 }
 
 // ==============================
@@ -350,7 +398,7 @@ function showScreen(id, btn) {
     document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
     if (btn) btn.classList.add('active');
 
-    const titles = { 'screen-dashboard': 'Dashboard', 'screen-12m': 'Shelf Life Report', 'screen-monthly': 'Monthly Report', 'screen-inventory': 'Inventory', 'screen-activity': 'Activity Log', 'screen-products': 'Products', 'screen-settings': 'Settings' };
+    const titles = { 'screen-dashboard': 'Dashboard', 'screen-12m': 'Shelf Life Report', 'screen-monthly': 'Monthly Report', 'screen-inventory': 'Inventory', 'screen-activity': 'Activity Log', 'screen-edit': 'Edit Transactions', 'screen-products': 'Products', 'screen-settings': 'Settings' };
     document.getElementById('page-title').textContent = titles[id] || 'Dashboard';
 
     if (id === 'screen-dashboard') renderDashboard();
@@ -358,10 +406,15 @@ function showScreen(id, btn) {
     if (id === 'screen-inventory') renderInventory();
     if (id === 'screen-12m') render12M(currentFilter || 'all');
     if (id === 'screen-monthly') renderMonthlyReport();
+    if (id === 'screen-edit') {
+        renderEditList();
+        // Always full-pull so edits made elsewhere are reflected here
+        if (window.syncManager && window.syncManager.pullAllForce) window.syncManager.pullAllForce().then(renderEditList);
+    }
     if (id === 'screen-products') renderProducts();
 
     var filterBar = document.getElementById('warehouse-filter-bar');
-    if (filterBar) filterBar.style.display = (id === 'screen-products') ? 'none' : '';
+    if (filterBar) filterBar.style.display = (id === 'screen-products' || id === 'screen-edit') ? 'none' : '';
 }
 
 // ==============================
@@ -753,6 +806,135 @@ function filterActivity(filter, btn) {
     document.querySelectorAll('#screen-activity .filter-btn').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
     renderActivity(filter);
+}
+
+// ==============================
+// EDIT TRANSACTIONS
+// ==============================
+// Edits the source transaction (matched by timestamp, which never changes)
+// via the backend, then forces a full pull back so every device converges.
+let editRow = null;
+
+function editScopeText() {
+    const scope = sessionScope();
+    const el = document.getElementById('edit-scope');
+    if (el) el.textContent = (scope ? scope : 'All warehouses');
+}
+
+function renderEditList() {
+    editScopeText();
+    const tbody = document.getElementById('tbody-edit');
+    const countEl = document.getElementById('edit-count');
+    const opData = loadOperatorData();
+    const scope = sessionScope();
+
+    let txs = (opData.transactions || []).filter(t => !scope || (t.warehouse || '') === scope);
+    const search = document.getElementById('edit-search').value.toLowerCase();
+    if (search) {
+        txs = txs.filter(t => (t.product || '').toLowerCase().includes(search) || (getAgiCode(t.product, t.packSize || '') || '').toLowerCase().includes(search));
+    }
+    txs.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+    if (countEl) countEl.textContent = txs.length + (txs.length === 1 ? ' transaction' : ' transactions');
+
+    if (txs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text-muted);">No transactions to edit.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = txs.map(d => {
+        const code = d.productionMonth || '';
+        return '<tr><td>' + (d.date || d.timestamp || '') + '</td><td>' + d.product + '</td><td>' + (d.packSize || '') + '</td><td>' + (code || '\u2014') + '</td><td>' + (getAgiCode(d.product, d.packSize || '') || '\u2014') + '</td><td>' + (d.warehouse || '\u2014') + '</td><td>' + d.type + '</td><td>' + d.quantity + '</td><td>' + (d.operator || '\u2014') + '</td>' +
+            '<td><button class="add-product-btn" onclick="openEditModal(\'' + d.timestamp.replace(/'/g, "\\'") + '\')">Edit</button></td></tr>';
+    }).join('');
+}
+
+function openEditModal(ts) {
+    if (!gateCheck('edit this transaction')) return;
+    const opData = loadOperatorData();
+    editRow = (opData.transactions || []).find(t => t.timestamp === ts);
+    if (!editRow) { alert('Transaction not found'); return; }
+
+    document.getElementById('edit-readonly').textContent =
+        (editRow.date || editRow.timestamp || '') + ' \u00b7 ' + (editRow.type || '') + ' \u00b7 ' + (editRow.operator || '') + ' \u00b7 ' + (editRow.warehouse || '');
+
+    // Product + pack selects (ensure the current product is present)
+    const prodSel = document.getElementById('edit-product');
+    const names = PRODUCTS.map(p => p.name).filter((v, i, a) => a.indexOf(v) === i);
+    if (names.indexOf(editRow.product) === -1) names.push(editRow.product);
+    prodSel.innerHTML = names.map(n => '<option value="' + n.replace(/"/g, '&quot;') + '"' + (n === editRow.product ? ' selected' : '') + '>' + n + '</option>').join('');
+
+    // Production code: '5A' → year '5', month 'A'
+    const pm = editRow.productionMonth || '';
+    const prodYearSel = document.getElementById('edit-prod-year');
+    const years = [];
+    for (let y = CONFIG.prodYears.start; y <= CONFIG.prodYears.end; y++) years.push(String(y));
+    prodYearSel.innerHTML = years.map(y => '<option value="' + y + '"' + (y === pm.charAt(0) ? ' selected' : '') + '>' + y + '</option>').join('');
+    document.getElementById('edit-prod-month').innerHTML = MONTH_LETTERS.map(m => '<option value="' + m + '"' + (m === pm.slice(1) ? ' selected' : '') + '>' + m + '</option>').join('');
+
+    // Expiry: 'Jan 2027' → month 'Jan', year '2027'
+    const expParts = String(editRow.expiryMonth || '').split(' ');
+    const expYearSel = document.getElementById('edit-exp-year');
+    const exps = [];
+    for (let y = CONFIG.expiryYears.start; y <= CONFIG.expiryYears.end; y++) exps.push(String(y));
+    expYearSel.innerHTML = exps.map(y => '<option value="' + y + '"' + (y === (expParts[1] || CONFIG.expiryYears.end) ? ' selected' : '') + '>' + y + '</option>').join('');
+    document.getElementById('edit-exp-month').innerHTML = MONTHS.map(m => '<option value="' + m + '"' + (m === expParts[0] ? ' selected' : '') + '>' + m + '</option>').join('');
+
+    onEditProductChange(editRow.packSize);
+    document.getElementById('edit-qty').value = editRow.quantity || 0;
+    document.getElementById('edit-modal').classList.add('open');
+}
+
+function onEditProductChange(packOverride) {
+    const product = document.getElementById('edit-product').value;
+    const packSel = document.getElementById('edit-pack');
+    const packs = PRODUCTS.filter(p => p.name === product).map(p => p.pack);
+    const cur = packOverride || (packSel.value || '');
+    if (packs.indexOf(cur) === -1 && cur) packs.push(cur);
+    if (packs.length === 0) packs.push('');
+    packSel.innerHTML = packs.map(p => '<option value="' + p.replace(/"/g, '&quot;') + '"' + (p === cur ? ' selected' : '') + '>' + p + '</option>').join('');
+}
+
+function closeEditModal() {
+    document.getElementById('edit-modal').classList.remove('open');
+    editRow = null;
+}
+
+function saveEditTransaction() {
+    if (!editRow) return;
+    if (!navigator.onLine) { alert('An online connection is needed to edit transactions.'); return; }
+    if (!window.syncManager || !window.syncManager.updateTransactions) { alert('Sync not available.'); return; }
+
+    const product = document.getElementById('edit-product').value;
+    const pack = document.getElementById('edit-pack').value;
+    const prodCode = document.getElementById('edit-prod-year').value + document.getElementById('edit-prod-month').value;
+    const expiry = document.getElementById('edit-exp-month').value + ' ' + document.getElementById('edit-exp-year').value;
+    const qty = parseInt(document.getElementById('edit-qty').value);
+    if (!product || !pack) { alert('Select a product and pack.'); return; }
+    if (isNaN(qty) || qty < 0) { alert('Enter a valid quantity.'); return; }
+
+    const item = {
+        client_timestamp: editRow.timestamp,
+        product: product,
+        pack_size: pack,
+        production_month: prodCode,
+        expiry_month: expiry,
+        quantity: qty
+    };
+
+    closeEditModal();
+    window.syncManager.updateTransactions([item]).then(function (res) {
+        if (res && res.success) {
+            // Force a full pull so this edit propagates to every device/tab
+            return window.syncManager.pullAllForce().then(function () {
+                renderEditList();
+                renderInventory();
+                renderActivity(currentActivityFilter);
+                renderDashboard();
+                alert('Transaction updated.');
+            });
+        }
+        alert('Save failed' + (res && res.error ? ': ' + res.error : ' — try again.'));
+    });
 }
 
 // ==============================
@@ -1401,14 +1583,9 @@ function togglePinVisibility(i) {
         renderOperatorPinList();
         return;
     }
-    const p = prompt('Enter admin password to reveal operator PIN');
-    if (p === null) return;
-    if (p === ADMIN_PASSWORD) {
-        revealedPins.add(op.pin);
-        renderOperatorPinList();
-    } else {
-        alert('Incorrect password.');
-    }
+    if (!gateCheck('reveal operator PIN')) return;
+    revealedPins.add(op.pin);
+    renderOperatorPinList();
 }
 
 function addOperatorPin() {
@@ -1422,6 +1599,8 @@ function addOperatorPin() {
     if (!name) { alert('Enter operator name'); return; }
     if (!pin || pin.length < 4 || isNaN(pin)) { alert('Enter a valid 4-digit PIN'); return; }
     if (CONFIG.operatorPins.some(op => op.pin === pin)) { alert('PIN already exists'); return; }
+    if (Object.values(WAREHOUSE_PINS).includes(pin)) { alert('This PIN is reserved for warehouse access'); return; }
+    if (pin === MASTER_PIN) { alert('This PIN is reserved for admin access'); return; }
     CONFIG.operatorPins.push({ name, pin, warehouse });
     saveConfig(CONFIG);
     nameEl.value = '';
@@ -1730,7 +1909,7 @@ function initApp() {
         }).then(function() {
             // Reload merged config, then re-push to fix any corrupted rows
             CONFIG = loadConfig();
-            saveConfig(CONFIG);
+            normalizeWarehouses();
             if (window.syncManager.pullAll) {
                 return window.syncManager.pullAll().then(function() {
                     renderAll();
@@ -1775,6 +1954,9 @@ document.getElementById('product-modal').addEventListener('click', function(e) {
 });
 document.getElementById('drilldown-modal').addEventListener('click', function(e) {
     if (e.target === this) closeDrilldown();
+});
+document.getElementById('edit-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditModal();
 });
 
 // Initialize sync manager
