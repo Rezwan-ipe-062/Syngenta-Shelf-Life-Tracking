@@ -78,6 +78,32 @@ function settingsCodeOk(action) {
     return gateCheck(action);
 }
 
+// Master-only gate: warehouse PINs are rejected. Used for products edits and
+// central (clear-all / date-range) data actions.
+function gateMaster(action) {
+    const s = getSession();
+    if (!s || !s.role) return false;
+    const code = prompt('Enter master PIN to ' + action + ':');
+    if (code === null) return false;
+    if (code === MASTER_PIN) return true;
+    alert('Incorrect PIN — master code required.');
+    return false;
+}
+
+// Target-warehouse gate: accepts the master PIN or the PIN of the given
+// warehouse. Used so deleting one warehouse's data requires THAT warehouse's
+// PIN, never a different one.
+function gateWarehouse(action, warehouse) {
+    const s = getSession();
+    if (!s || !s.role) return false;
+    const code = prompt('Enter PIN to ' + action + ':');
+    if (code === null) return false;
+    if (code === MASTER_PIN) return true;
+    if (warehouse && WAREHOUSE_PINS[warehouse] === code) return true;
+    alert('Incorrect PIN for ' + (warehouse || 'this warehouse') + '.');
+    return false;
+}
+
 // ==============================
 // WAREHOUSE NORMALIZATION
 // ==============================
@@ -1033,13 +1059,20 @@ function renderProducts() {
         data = data.filter(d => d.name.toLowerCase().includes(search) || d.prefix.toLowerCase().includes(search));
     }
 
+    const canEdit = !sessionScope();
+    var addBtn = document.getElementById('btn-add-product');
+    if (addBtn) addBtn.style.display = canEdit ? '' : 'none';
     tbody.innerHTML = data.map((d, i) => {
         const originalIndex = PRODUCTS.indexOf(d);
-        return '<tr><td><span class="badge badge-green">' + (d.prefix || '\u2014') + '</span></td><td>' + d.name + '</td><td>' + (d.pack || '\u2014') + '</td><td>' + (getAgiCode(d.name, d.pack) || '\u2014') + '</td><td><button class="action-btn" onclick="editProduct(' + originalIndex + ')">Edit</button> <button class="action-btn danger" onclick="deleteProduct(' + originalIndex + ')">Delete</button></td></tr>';
+        var actions = canEdit
+            ? '<td><button class="action-btn" onclick="editProduct(' + originalIndex + ')">Edit</button> <button class="action-btn danger" onclick="deleteProduct(' + originalIndex + ')">Delete</button></td>'
+            : '<td style="color:var(--text-muted);font-size:12px;">View only</td>';
+        return '<tr><td><span class="badge badge-green">' + (d.prefix || '\u2014') + '</span></td><td>' + d.name + '</td><td>' + (d.pack || '\u2014') + '</td><td>' + (getAgiCode(d.name, d.pack) || '\u2014') + '</td>' + actions + '</tr>';
     }).join('');
 }
 
 function openProductModal(idx) {
+    if (!gateMaster('change products')) return;
     editingIndex = idx !== undefined ? idx : -1;
     document.getElementById('modal-title').textContent = editingIndex >= 0 ? 'Edit Product' : 'Add Product';
     if (editingIndex >= 0) {
@@ -1092,6 +1125,7 @@ function editProduct(idx) {
 }
 
 function deleteProduct(idx) {
+    if (!gateMaster('change products')) return;
     if (!confirm('Delete ' + PRODUCTS[idx].name + ' ' + PRODUCTS[idx].pack + '?')) return;
     const old = PRODUCTS[idx];
     const oldKey = old.name + '|' + (old.pack || '');
@@ -1560,13 +1594,20 @@ function renderSettings() {
 function renderOperatorPinList() {
     const list = document.getElementById('operator-pin-list');
     const whSelect = document.getElementById('new-op-warehouse');
+    const scope = sessionScope();
     if (whSelect) {
-        whSelect.innerHTML = CONFIG.warehouses.map(w => '<option value="' + w + '">' + w + '</option>').join('');
+        var whOpts = scope ? [scope] : CONFIG.warehouses;
+        whSelect.innerHTML = whOpts.map(w => '<option value="' + w + '">' + w + '</option>').join('');
+        if (scope && whSelect.value !== scope) whSelect.value = scope;
+        if (scope) whSelect.disabled = true;
     }
     if (!CONFIG.operatorPins) CONFIG.operatorPins = [];
-    list.innerHTML = CONFIG.operatorPins.length === 0
-        ? '<div style="font-size:13px;color:var(--text-muted);padding:8px 0;">No operators configured. Add one below to enable login.</div>'
-        : CONFIG.operatorPins.map((op, i) =>
+    var visible = CONFIG.operatorPins
+        .map((op, i) => ({ op, i }))
+        .filter(x => !scope || (x.op.warehouse || CONFIG.warehouses[0]) === scope);
+    list.innerHTML = visible.length === 0
+        ? '<div style="font-size:13px;color:var(--text-muted);padding:8px 0;">No operators configured for ' + (scope || 'this warehouse') + '.</div>'
+        : visible.map(({ op, i }) =>
             '<div class="settings-wh-row">' +
             '<span class="wh-name">' + op.name + ' \u2014 <code>' + (revealedPins.has(op.pin) ? op.pin : '****') + '</code> \u2014 ' + (op.warehouse || CONFIG.warehouses[0]) + '</span>' +
             '<button class="wh-show" onclick="togglePinVisibility(' + i + ')">' + (revealedPins.has(op.pin) ? 'Hide' : 'Show') + '</button>' +
@@ -1578,6 +1619,9 @@ function renderOperatorPinList() {
 function togglePinVisibility(i) {
     const op = CONFIG.operatorPins && CONFIG.operatorPins[i];
     if (!op) return;
+    // Officers may only reveal operators in their own warehouse.
+    const scope = sessionScope();
+    if (scope && (op.warehouse || CONFIG.warehouses[0]) !== scope) { alert('You can only reveal PINs for ' + scope + ' operators.'); return; }
     if (revealedPins.has(op.pin)) {
         revealedPins.delete(op.pin);
         renderOperatorPinList();
@@ -1595,7 +1639,9 @@ function addOperatorPin() {
     const whEl = document.getElementById('new-op-warehouse');
     const name = nameEl.value.trim();
     const pin = pinEl.value.trim();
-    const warehouse = whEl ? whEl.value : CONFIG.warehouses[0];
+    const scope = sessionScope();
+    // Officers can only add operators to their own warehouse; master can pick.
+    const warehouse = scope || (whEl ? whEl.value : CONFIG.warehouses[0]);
     if (!name) { alert('Enter operator name'); return; }
     if (!pin || pin.length < 4 || isNaN(pin)) { alert('Enter a valid 4-digit PIN'); return; }
     if (CONFIG.operatorPins.some(op => op.pin === pin)) { alert('PIN already exists'); return; }
@@ -1610,7 +1656,10 @@ function addOperatorPin() {
 
 function removeOperatorPin(idx) {
     if (!settingsCodeOk('remove an operator')) return;
-    if (!confirm('Remove operator "' + CONFIG.operatorPins[idx].name + '"?')) return;
+    const op = CONFIG.operatorPins[idx];
+    const scope = sessionScope();
+    if (scope && op && (op.warehouse || CONFIG.warehouses[0]) !== scope) { alert('You can only remove ' + scope + ' operators.'); return; }
+    if (!confirm('Remove operator "' + (op ? op.name : '') + '"?')) return;
     CONFIG.operatorPins.splice(idx, 1);
     saveConfig(CONFIG);
     renderOperatorPinList();
@@ -1705,7 +1754,7 @@ function clearLocalData() {
 }
 
 function deleteLocalDataForWarehouse(warehouse) {
-    if (!settingsCodeOk("delete this warehouse's data")) return;
+    if (!gateWarehouse("delete this warehouse's data", warehouse)) return;
     clearLocalDataForWarehouse(warehouse);
 }
 
@@ -1726,7 +1775,7 @@ function clearLocalDataForWarehouse(warehouse) {
 }
 
 function clearCloudData() {
-    if (!settingsCodeOk('clear all cloud data')) return;
+    if (!gateMaster('clear all cloud data')) return;
     if (!confirm('Delete ALL data from the cloud? This will clear: transactions, inventory, monthly_snapshots, config.')) return;
     if (!confirm('FINAL WARNING: This removes ALL data from the cloud database. Continue?')) return;
 
@@ -1751,10 +1800,10 @@ function clearCloudData() {
 }
 
 function clearCloudByWarehouse() {
-    if (!settingsCodeOk('clear warehouse data')) return;
     var sel = document.getElementById('clean-warehouse-select');
     if (!sel || !sel.value) { alert('Select a warehouse first'); return; }
     var warehouse = sel.value;
+    if (!gateWarehouse('clear warehouse data', warehouse)) return;
     if (!confirm('Delete ALL cloud data for "' + warehouse + '"? This removes transactions, inventory, and snapshots for this warehouse.')) return;
     if (!confirm('FINAL: Remove all "' + warehouse + '" data from cloud?')) return;
 
@@ -1772,7 +1821,7 @@ function clearCloudByWarehouse() {
 }
 
 function clearCloudByDateRange() {
-    if (!settingsCodeOk('clear date-range data')) return;
+    if (!gateMaster('clear date-range data')) return;
     var startEl = document.getElementById('clean-date-start');
     var endEl = document.getElementById('clean-date-end');
     if (!startEl || !endEl || !startEl.value || !endEl.value) { alert('Select start and end dates'); return; }
