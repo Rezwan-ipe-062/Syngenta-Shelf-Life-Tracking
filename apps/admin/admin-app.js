@@ -66,6 +66,7 @@ function sessionScope() {
 function gateCheck(action) {
     const s = getSession();
     if (!s || !s.role) return false;
+    if (s.role === 'master') return true;
     const code = prompt('Enter PIN to ' + action + ':');
     if (code === null) return false;
     if (code === MASTER_PIN) return true;
@@ -83,6 +84,7 @@ function settingsCodeOk(action) {
 function gateMaster(action) {
     const s = getSession();
     if (!s || !s.role) return false;
+    if (s.role === 'master') return true;
     const code = prompt('Enter master PIN to ' + action + ':');
     if (code === null) return false;
     if (code === MASTER_PIN) return true;
@@ -96,6 +98,7 @@ function gateMaster(action) {
 function gateWarehouse(action, warehouse) {
     const s = getSession();
     if (!s || !s.role) return false;
+    if (s.role === 'master') return true;
     const code = prompt('Enter PIN to ' + action + ':');
     if (code === null) return false;
     if (code === MASTER_PIN) return true;
@@ -1602,11 +1605,11 @@ function renderOperatorPinList() {
         if (scope) whSelect.disabled = true;
     }
     if (!CONFIG.operatorPins) CONFIG.operatorPins = [];
-    var visible = CONFIG.operatorPins
-        .map((op, i) => ({ op, i }))
-        .filter(x => !scope || (x.op.warehouse || CONFIG.warehouses[0]) === scope);
+    // Show every operator so PIN collisions across warehouses stay visible.
+    // Reveal/Remove are still scoped to the officer's own warehouse below.
+    var visible = CONFIG.operatorPins.map((op, i) => ({ op, i }));
     list.innerHTML = visible.length === 0
-        ? '<div style="font-size:13px;color:var(--text-muted);padding:8px 0;">No operators configured for ' + (scope || 'this warehouse') + '.</div>'
+        ? '<div style="font-size:13px;color:var(--text-muted);padding:8px 0;">No operators configured yet.</div>'
         : visible.map(({ op, i }) =>
             '<div class="settings-wh-row">' +
             '<span class="wh-name">' + op.name + ' \u2014 <code>' + (revealedPins.has(op.pin) ? op.pin : '****') + '</code> \u2014 ' + (op.warehouse || CONFIG.warehouses[0]) + '</span>' +
