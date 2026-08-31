@@ -1434,7 +1434,8 @@ function togglePinVisibility(i) {
         renderOperatorPinList();
         return;
     }
-    const p = prompt('Enter admin password (9876) to reveal operator PIN');
+    const p = prompt('Enter admin password to reveal operator PIN');
+    if (p === null) return;
     if (p === ADMIN_PASSWORD) {
         revealedPins.add(op.pin);
         renderOperatorPinList();
@@ -1757,10 +1758,12 @@ function initApp() {
             } else {
                 console.error('Apps Script ping failed — GET endpoint may be unreachable');
             }
-            // Re-push config to sheet on init to fix any corrupted rows
-            saveConfig(CONFIG);
+            // Pull + merge first so a stale local copy can't wipe newer cloud operators
             return window.syncManager.pullConfig ? window.syncManager.pullConfig() : Promise.resolve();
         }).then(function() {
+            // Reload merged config, then re-push to fix any corrupted rows
+            CONFIG = loadConfig();
+            saveConfig(CONFIG);
             if (window.syncManager.pullAll) {
                 return window.syncManager.pullAll().then(function() {
                     renderAll();

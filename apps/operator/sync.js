@@ -43,6 +43,30 @@
         }).then(function (r) { return r.json(); });
     }
 
+    // Merge a cloud config into the local one so multi-PC admin panels
+    // converge on a union of operatorPins/warehouses instead of the last
+    // writer wiping the others.
+    // ponytail: whole-document last-writer-wins race persists if two PCs edit
+    // PINs within one un-refreshed session; converges on the next pull.
+    function mergeConfig(localCfg, cloudCfg) {
+        if (!cloudCfg || typeof cloudCfg !== 'object') return localCfg;
+        if (!localCfg || typeof localCfg !== 'object') return cloudCfg;
+
+        var byPin = {};
+        (cloudCfg.operatorPins || []).forEach(function (op) { byPin[op.pin] = op; });
+        (localCfg.operatorPins || []).forEach(function (op) { byPin[op.pin] = op; });
+        if (Object.keys(byPin).length > 0) localCfg.operatorPins = Object.keys(byPin).map(function (k) { return byPin[k]; });
+
+        var wh = {};
+        (cloudCfg.warehouses || []).forEach(function (w) { wh[w] = 1; });
+        (localCfg.warehouses || []).forEach(function (w) { wh[w] = 1; });
+        if (Object.keys(wh).length > 0) localCfg.warehouses = Object.keys(wh);
+
+        if (cloudCfg.expiryYears) localCfg.expiryYears = cloudCfg.expiryYears;
+        if (cloudCfg.prodYears) localCfg.prodYears = cloudCfg.prodYears;
+        return localCfg;
+    }
+
     var sync = {
         init: function () {
             if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('YOUR_DEPLOYMENT_URL') !== -1) {
@@ -278,13 +302,18 @@
         pullConfig: function () {
             if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('YOUR_DEPLOYMENT_URL') !== -1) return Promise.resolve();
             return apiGet('readFiltered', { sheet: 'config', key: 'key', value: 'shelf-life-config' }).then(function (data) {
-                if (data && data.value) {
-                    var val = data.value;
-                    if (typeof val === 'string') {
-                        try { JSON.parse(val); localStorage.setItem('shelf-life-config', val); } catch (e) {}
-                    } else if (typeof val === 'object' && val !== null) {
-                        localStorage.setItem('shelf-life-config', JSON.stringify(val));
+                if (!data || !data.value) return;
+                var val = data.value;
+                if (typeof val === 'string') {
+                    try { val = JSON.parse(val); } catch (e) { return; }
+                }
+                if (val && typeof val === 'object') {
+                    var local = null;
+                    var raw = loadRaw('shelf-life-config');
+                    if (raw) {
+                        try { local = JSON.parse(raw); } catch (e) {}
                     }
+                    localStorage.setItem('shelf-life-config', JSON.stringify(mergeConfig(local || {}, val)));
                 }
             }).catch(function (e) {
                 console.warn('pullConfig error', e.message || e);
