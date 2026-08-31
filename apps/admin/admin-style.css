@@ -959,39 +959,8 @@
     color: var(--text);
 }
 
-/* MONTHLY REPORT BUCKET TABS */
-.bucket-tabs {
-    display: flex;
-    gap: 0;
-    margin-bottom: 12px;
-    border-bottom: 2px solid var(--border);
-}
-.bucket-tab {
-    padding: 10px 20px;
-    border: none;
-    background: none;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text-muted);
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -2px;
-    transition: all 0.2s;
-}
-.bucket-tab:hover { color: var(--text); }
-.bucket-tab.active {
-    color: var(--primary);
-    border-bottom-color: var(--primary);
-}
-.movement-up { color: #DC2626; }
-.movement-down { color: #16A34A; }
-.total-row td {
-    border-top: 2px solid var(--border);
-    font-weight: 600;
-}
-
-/* MONTHLY REPORT KPI COMPARISON CARDS */
-.monthly-kpi-comparison {
+/* MONTHLY REPORT TOTAL COMPARE */
+.monthly-total-compare {
     display: flex;
     align-items: center;
     gap: 16px;
@@ -1001,7 +970,7 @@
     border: 1px solid var(--border);
     border-radius: 12px;
 }
-.comparison-card {
+.month-compare-card {
     flex: 1;
     text-align: center;
     padding: 20px;
@@ -1028,19 +997,13 @@
     color: var(--text-muted);
     margin-top: 4px;
 }
-.comparison-arrow {
-    font-size: 20px;
-    color: var(--text-muted);
-    display: flex;
-    align-items: center;
-}
 .comparison-delta {
     text-align: center;
     padding: 12px 20px;
     border-radius: 10px;
     background: var(--bg);
     border: 1px solid var(--border);
-    min-width: 100px;
+    min-width: 110px;
 }
 .delta-label {
     font-size: 11px;
@@ -1054,36 +1017,46 @@
     font-size: 18px;
     font-weight: 700;
 }
-.kpi-row {
+
+/* MONTHLY REPORT BUCKET CHANGE CARDS */
+.bucket-change-row {
     display: grid;
+    grid-template-columns: repeat(3, 1fr);
     gap: 12px;
     margin-bottom: 20px;
 }
-.kpi-card {
+.bucket-change-card {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 16px 20px;
 }
-.kpi-label {
+.bucket-change-title {
     font-size: 11px;
     font-weight: 600;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
 }
-.kpi-value {
-    font-size: 22px;
+.bucket-change-values {
+    font-size: 18px;
     font-weight: 700;
     color: var(--text);
+    margin-bottom: 6px;
 }
-.kpi-sub {
-    font-size: 11px;
-    color: var(--text-muted);
-    margin-top: 2px;
+.bucket-change-delta {
+    font-size: 14px;
+    font-weight: 600;
 }
-.expired-card .kpi-value { font-size: 18px; }
+
+/* MONTHLY REPORT MOVEMENT */
+.movement-up { color: #DC2626; }
+.movement-down { color: #16A34A; }
+.total-row td {
+    border-top: 2px solid var(--border);
+    font-weight: 600;
+}
 .operator-stats-list {
     display: flex;
     flex-direction: column;

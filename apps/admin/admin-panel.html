@@ -285,90 +285,55 @@
                         </div>
                     </div>
 
-                    <div class="monthly-kpi-comparison">
-                        <div class="comparison-card lm-card">
+                    <div class="monthly-total-compare" id="monthly-total-compare">
+                        <div class="month-compare-card lm-card">
                             <div class="comparison-label">Last Month</div>
-                            <div class="comparison-value" id="kpi-lm-total">--</div>
-                            <div class="comparison-month" id="kpi-lm-month"></div>
+                            <div class="comparison-value" id="monthly-lm-value">--</div>
+                            <div class="comparison-month" id="monthly-lm-month"></div>
                         </div>
-                        <div class="comparison-arrow">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                        </div>
-                        <div class="comparison-card cm-card">
-                            <div class="comparison-label">Current Month</div>
-                            <div class="comparison-value" id="kpi-cm-total">--</div>
-                            <div class="comparison-month" id="kpi-cm-month"></div>
-                        </div>
-                        <div class="comparison-delta" id="kpi-mom-change">
+                        <div class="comparison-delta" id="monthly-total-delta">
                             <div class="delta-label">Change</div>
                             <div class="delta-value">--</div>
                         </div>
-                    </div>
-
-                    <div class="kpi-row" style="grid-template-columns:repeat(3,1fr);">
-                        <div class="kpi-card expired-card">
-                            <div class="kpi-label">Expired Stock</div>
-                            <div class="kpi-value" id="kpi-expired">--</div>
-                            <div class="kpi-sub" id="kpi-expired-month"></div>
-                        </div>
-                        <div class="kpi-card">
-                            <div class="kpi-label">≤6 Months</div>
-                            <div class="kpi-value" id="kpi-short-total">--</div>
-                        </div>
-                        <div class="kpi-card">
-                            <div class="kpi-label">7-12 Months</div>
-                            <div class="kpi-value" id="kpi-medium-total">--</div>
+                        <div class="month-compare-card cm-card">
+                            <div class="comparison-label">This Month</div>
+                            <div class="comparison-value" id="monthly-cm-value">--</div>
+                            <div class="comparison-month" id="monthly-cm-month"></div>
                         </div>
                     </div>
 
-                    <div class="bucket-tabs">
-                        <button class="bucket-tab active" data-bucket="expired">Expired</button>
-                        <button class="bucket-tab" data-bucket="short">≤6 Months</button>
-                        <button class="bucket-tab" data-bucket="medium">7-12 Months</button>
+                    <div class="bucket-change-row">
+                        <div class="bucket-change-card">
+                            <div class="bucket-change-title">Expired Stock</div>
+                            <div class="bucket-change-values" id="bucket-values-expired">--</div>
+                            <div class="bucket-change-delta" id="bucket-delta-expired">--</div>
+                        </div>
+                        <div class="bucket-change-card">
+                            <div class="bucket-change-title">7-12 Months</div>
+                            <div class="bucket-change-values" id="bucket-values-medium">--</div>
+                            <div class="bucket-change-delta" id="bucket-delta-medium">--</div>
+                        </div>
+                        <div class="bucket-change-card">
+                            <div class="bucket-change-title">≤6 Months</div>
+                            <div class="bucket-change-values" id="bucket-values-short">--</div>
+                            <div class="bucket-change-delta" id="bucket-delta-short">--</div>
+                        </div>
                     </div>
 
-                    <div class="table-wrap bucket-section" id="bucket-expired">
+                    <div class="table-wrap">
                         <table class="admin-table">
                             <thead>
                                 <tr>
                                     <th>Product</th>
+                                    <th>Pack</th>
+                                    <th>Bucket</th>
                                     <th>LM Qty</th>
                                     <th>CM Qty</th>
                                     <th>Δ</th>
                                     <th>Δ%</th>
                                 </tr>
                             </thead>
-                            <tbody id="bucket-expired-body"></tbody>
-                        </table>
-                    </div>
-
-                    <div class="table-wrap bucket-section" id="bucket-short" style="display:none;">
-                        <table class="admin-table">
-                            <thead>
-                                <tr>
-                                    <th>Product</th>
-                                    <th>LM Qty</th>
-                                    <th>CM Qty</th>
-                                    <th>Δ</th>
-                                    <th>Δ%</th>
-                                </tr>
-                            </thead>
-                            <tbody id="bucket-short-body"></tbody>
-                        </table>
-                    </div>
-
-                    <div class="table-wrap bucket-section" id="bucket-medium" style="display:none;">
-                        <table class="admin-table">
-                            <thead>
-                                <tr>
-                                    <th>Product</th>
-                                    <th>LM Qty</th>
-                                    <th>CM Qty</th>
-                                    <th>Δ</th>
-                                    <th>Δ%</th>
-                                </tr>
-                            </thead>
-                            <tbody id="bucket-medium-body"></tbody>
+                            <tbody id="tbody-sku-change"></tbody>
                         </table>
                     </div>
                 </div>
