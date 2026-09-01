@@ -959,6 +959,33 @@
     color: var(--text);
 }
 
+.monthly-picker {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+.monthly-picker label {
+    margin-left: 4px;
+}
+.monthly-picker .settings-input {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    background: var(--card);
+    color: var(--text);
+}
+
+.expiry-12m-col {
+    font-weight: 700;
+    color: #B45309;
+    background: #FFFBEB;
+}
+
 /* MONTHLY REPORT TOTAL COMPARE */
 .monthly-total-compare {
     display: flex;

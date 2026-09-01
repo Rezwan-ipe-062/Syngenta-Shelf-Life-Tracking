@@ -259,7 +259,7 @@
                     <div class="table-wrap">
                         <table class="admin-table">
                             <thead>
-                                <tr><th>Product</th><th>Pack</th><th>AGI Code</th><th>Expired</th><th>≤3mo</th><th>4-6mo</th><th>7-12mo</th><th>13-18mo</th><th>Future</th><th>Total Qty</th><th>Warehouses</th><th>Nearest Expiry</th></tr>
+                                <tr><th>Product</th><th>Pack</th><th>AGI Code</th><th>Expired</th><th>≤3mo</th><th>4-6mo</th><th>7-12mo</th><th class="expiry-12m-col">≤12 Month</th><th>13-18mo</th><th>Future</th><th>Total Qty</th></tr>
                             </thead>
                             <tbody id="tbody-country"></tbody>
                         </table>
@@ -279,7 +279,7 @@
                         <button class="filter-btn" onclick="filter12M('expired', this)" style="border-color:#1F2937;color:#1F2937;">Expired</button>
                         <span class="filter-count" id="filter-count">Showing 18 items</span>
                         <span class="filter-separator"></span>
-                        <input type="text" id="life-search" class="settings-input" placeholder="Search product / pack / code..." oninput="render12M(currentFilter)" style="width:200px;">
+                        <input type="text" id="life-search" class="settings-input" placeholder="Search product / pack / code..." oninput="render12M()" style="width:200px;">
                         <button class="filter-btn export-btn" onclick="exportExcel()">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                             Download Excel
@@ -309,6 +309,14 @@
                                 Export CSV
                             </button>
                         </div>
+                    </div>
+
+                    <div class="monthly-picker">
+                        <label>Last Month</label>
+                        <select id="monthly-lm-month-select" class="settings-input" onchange="renderMonthlyReport()"><option value="auto">Auto (month before)</option></select>
+                        <label>Current Month</label>
+                        <select id="monthly-cm-month-select" class="settings-input" onchange="populateMonthlyPicker();renderMonthlyReport()"><option value="auto">Auto (latest)</option></select>
+                        <button class="filter-btn" onclick="resetMonthlyPicker()" style="padding:6px 10px;">Reset to Auto</button>
                     </div>
 
                     <div id="ageing-first-month-note" style="background:#FFFBEB;border:1px solid #FDE68A;border-left:4px solid #F59E0B;padding:10px 14px;border-radius:8px;font-size:13px;color:#92400E;margin-bottom:14px;display:none;"></div>

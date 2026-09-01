@@ -407,7 +407,7 @@ function isActiveScreen(id) {
 
 function refreshCurrentScreen() {
     if (isActiveScreen('screen-dashboard')) renderDashboard();
-    if (isActiveScreen('screen-12m')) render12M(currentFilter);
+    if (isActiveScreen('screen-12m')) render12M();
     if (isActiveScreen('screen-monthly')) renderMonthlyReport();
     if (isActiveScreen('screen-country')) renderCountrySummary();
     if (isActiveScreen('screen-inventory')) renderInventory();
@@ -434,7 +434,7 @@ function showScreen(id, btn) {
     if (id === 'screen-dashboard') renderDashboard();
     if (id === 'screen-activity') { renderActivityWarehouseChips(); renderActivity(currentActivityFilter); }
     if (id === 'screen-inventory') renderInventory();
-    if (id === 'screen-12m') render12M(currentFilter || 'all');
+    if (id === 'screen-12m') render12M();
     if (id === 'screen-country') renderCountrySummary();
     if (id === 'screen-monthly') renderMonthlyReport();
     if (id === 'screen-edit') {
@@ -716,10 +716,10 @@ function renderCharts(inventory) {
 // ==============================
 // 12M & 18M TABLE
 // ==============================
-let currentFilter = 'all';
+let shelfLevels = new Set();
 let currentInvFilter = 'all';
 
-function render12M(filter) {
+function render12M() {
     const tbody = document.getElementById('tbody-12m');
     const opData = loadOperatorData();
 
@@ -738,8 +738,8 @@ function render12M(filter) {
         };
     }));
 
-    if (filter !== 'all') {
-        expiryItems = expiryItems.filter(d => d.level === filter);
+    if (shelfLevels.size > 0) {
+        expiryItems = expiryItems.filter(d => shelfLevels.has(d.level));
     }
 
     const search = (document.getElementById('life-search').value || '').toLowerCase();
@@ -752,7 +752,7 @@ function render12M(filter) {
 
     if (expiryItems.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">' +
-            (filter === 'all' ? 'No inventory data yet. Start counting from the operator app.' : 'No items match this filter.') +
+            (shelfLevels.size === 0 ? 'No inventory data yet. Start counting from the operator app.' : 'No items match these filters.') +
             '</td></tr>';
         return;
     }
@@ -765,11 +765,22 @@ function render12M(filter) {
     }).join('');
 }
 
-function filter12M(filter, btn) {
-    currentFilter = filter;
+function filter12M(level, btn) {
+    if (level === 'all') {
+        shelfLevels.clear();
+    } else if (shelfLevels.has(level)) {
+        shelfLevels.delete(level);
+    } else {
+        shelfLevels.add(level);
+    }
     document.querySelectorAll('#screen-12m .filter-btn').forEach(b => b.classList.remove('active'));
-    if (btn) btn.classList.add('active');
-    render12M(filter);
+    if (shelfLevels.size === 0) {
+        var allBtn = document.querySelector('#screen-12m .filter-bar .filter-btn');
+        if (allBtn) allBtn.classList.add('active');
+    } else if (btn) {
+        btn.classList.add('active');
+    }
+    render12M();
 }
 
 function filterInventory(filter, btn) {
@@ -1166,7 +1177,7 @@ function downloadCSV(csv, filename) {
     URL.revokeObjectURL(link.href);
 }
 
-function exportExcel() { exportCsv(currentFilter, 'Expiry_Report_'); }
+function exportExcel() { exportCsv(shelfLevels, 'Expiry_Report_'); }
 function exportDashboard() { exportCsv(null, 'Dashboard_Expiry_'); }
 function exportCsv(filter, prefix) {
     const opData = loadOperatorData();
@@ -1174,7 +1185,7 @@ function exportCsv(filter, prefix) {
         const monthsLeft = monthsUntilExpiry(item.expiryMonth);
         return { product: item.product, pack: item.packSize, code: item.productionMonth || '', expiry: item.expiryMonth, qty: item.quantity, monthsLeft, level: getExpiryLevel(monthsLeft), range: monthsLeft <= 12 ? '12m' : '18m', warehouse: item.warehouse || '' };
     });
-    if (filter && filter !== 'all') data = data.filter(d => d.level === filter);
+    if (filter && filter.size) data = data.filter(d => filter.has(d.level));
     const search = (document.getElementById('life-search').value || '').toLowerCase();
     if (search) data = data.filter(d => d.product.toLowerCase().includes(search) || (d.pack || '').toLowerCase().includes(search) || (d.code || '').toLowerCase().includes(search));
     let csv = 'Product,Pack,Code,Expiry,Qty,Months Left,Level,Range,Warehouse\n';
@@ -1294,26 +1305,46 @@ function rebuildInventoryAt(cutoffTs) {
     return Object.values(inv).filter(function (i) { return i.qty > 0; });
 }
 
+function monthOf(ts) {
+    var d = new Date(ts);
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1);
+}
+
+function prevMonthOf(ym) {
+    var d = new Date(ym + '-01');
+    d.setMonth(d.getMonth() - 1);
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1);
+}
+
 function computeMonthSnapshots() {
     var txs = (loadOperatorData().transactions || []);
-    var latest = 0;
-    txs.forEach(function (t) { var ts = parseEntryDate(t); if (ts > latest) latest = ts; });
-    var skipped = txs.filter(function (t) { return parseEntryDate(t) === 0; }).length;
-    var empty = { lmMonth: '', cmMonth: '', lmEnd: 0, cmEnd: 0, lmStart: 0, cmStart: 0, lmSnapshot: [], cmSnapshot: [], skipped: skipped, isFirstMonth: true };
+    var first = 0, latest = 0, skipped = 0;
+    txs.forEach(function (t) {
+        var ts = parseEntryDate(t);
+        if (ts === 0) { skipped++; return; }
+        if (!first || ts < first) first = ts;
+        if (ts > latest) latest = ts;
+    });
+    var empty = { lmMonth: '', cmMonth: '', lmEnd: 0, cmEnd: 0, lmStart: 0, cmStart: 0, lmSnapshot: [], cmSnapshot: [], skipped: skipped, isFirstMonth: false, lmHasRecords: false, hasData: false };
     if (!latest) return empty;
-    var d = new Date(latest);
-    var cmMonth = d.getFullYear() + '-' + pad2(d.getMonth() + 1);
+
+    var autoCm = monthOf(latest);
+    var cmSel = document.getElementById('monthly-cm-month-select');
+    var lmSel = document.getElementById('monthly-lm-month-select');
+    var cmMonth = cmSel && cmSel.value && cmSel.value !== 'auto' ? cmSel.value : autoCm;
+    var lmMonth = lmSel && lmSel.value && lmSel.value !== 'auto' ? lmSel.value : prevMonthOf(cmMonth);
+    if (lmMonth >= cmMonth) lmMonth = prevMonthOf(cmMonth);
+
     var cmEnd = monthEndOf(cmMonth);
-    var lmD = new Date(cmEnd); lmD.setDate(1); lmD.setMonth(lmD.getMonth() - 1);
-    var lmMonth = lmD.getFullYear() + '-' + pad2(lmD.getMonth() + 1);
     var lmEnd = monthEndOf(lmMonth);
-    var lmSnapshot = rebuildInventoryAt(lmEnd);
+    var lmHasRecords = txs.some(function (t) { var ts = parseEntryDate(t); return ts > 0 && monthOf(ts) === lmMonth; });
+    var isFirstMonth = !txs.some(function (t) { var ts = parseEntryDate(t); return ts > 0 && monthOf(ts) < cmMonth; });
+
     return {
         lmMonth: lmMonth, cmMonth: cmMonth, lmEnd: lmEnd, cmEnd: cmEnd,
         lmStart: monthStartOf(lmMonth), cmStart: monthStartOf(cmMonth),
-        lmSnapshot: lmSnapshot, cmSnapshot: rebuildInventoryAt(cmEnd),
-        skipped: skipped,
-        isFirstMonth: lmSnapshot.length === 0
+        lmSnapshot: rebuildInventoryAt(lmEnd), cmSnapshot: rebuildInventoryAt(cmEnd),
+        skipped: skipped, isFirstMonth: isFirstMonth, lmHasRecords: lmHasRecords, hasData: true
     };
 }
 
@@ -1356,7 +1387,39 @@ function ageRowClass(b) {
     return { expired: 'row-expired', crit: 'row-critical', warn: 'row-warning', notc: 'row-notice' }[b] || '';
 }
 
+function populateMonthlyPicker() {
+    var txs = (loadOperatorData().transactions || []);
+    var months = {};
+    txs.forEach(function (t) {
+        var ts = parseEntryDate(t);
+        if (ts > 0) months[monthOf(ts)] = true;
+    });
+    var cmSel = document.getElementById('monthly-cm-month-select');
+    var lmSel = document.getElementById('monthly-lm-month-select');
+    if (!cmSel || !lmSel) return;
+    var chosenCm = cmSel.value || 'auto';
+    var chosenLm = lmSel.value || 'auto';
+    var sorted = Object.keys(months).sort();
+    cmSel.innerHTML = ['auto'].concat(sorted).map(function (m) {
+        return '<option value="' + m + '">' + (m === 'auto' ? 'Auto (latest)' : formatMonth(m)) + '</option>';
+    }).join('');
+    lmSel.innerHTML = ['auto'].concat(sorted.filter(function (m) { return m < chosenCm; })).map(function (m) {
+        return '<option value="' + m + '">' + (m === 'auto' ? 'Auto (month before)' : formatMonth(m)) + '</option>';
+    }).join('');
+    if (cmSel.querySelector('option[value="' + chosenCm + '"]')) cmSel.value = chosenCm;
+    if (lmSel.querySelector('option[value="' + chosenLm + '"]')) lmSel.value = chosenLm;
+}
+
+function resetMonthlyPicker() {
+    var cmSel = document.getElementById('monthly-cm-month-select');
+    var lmSel = document.getElementById('monthly-lm-month-select');
+    if (cmSel) cmSel.value = 'auto';
+    if (lmSel) lmSel.value = 'auto';
+    renderMonthlyReport();
+}
+
 function renderMonthlyReport() {
+    populateMonthlyPicker();
     renderAgeingSummary();
     renderCohortFollowup();
 }
@@ -1368,6 +1431,29 @@ function setText(id, text) {
 
 function renderAgeingSummary() {
     var snap = computeMonthSnapshots();
+    if (!snap.hasData) {
+        setText('ageing-reference', 'Inventory Expiry Ageing Summary \u2014 no data yet');
+        setText('ageing-lm-label', 'Last Month');
+        setText('ageing-lm-value', '--');
+        setText('ageing-lm-month', '');
+        setText('ageing-cm-label', 'Current Month');
+        setText('ageing-cm-value', '--');
+        setText('ageing-cm-month', '');
+        var deltaEl0 = document.getElementById('ageing-total-delta');
+        if (deltaEl0) {
+            var dv0 = document.getElementById('ageing-delta-value');
+            if (dv0) { dv0.textContent = '--'; dv0.style.color = ''; }
+            var dl0 = deltaEl0.querySelector('.delta-label');
+            if (dl0) dl0.textContent = 'Change';
+        }
+        var fn = document.getElementById('ageing-first-month-note');
+        if (fn) fn.style.display = 'none';
+        var en = document.getElementById('ageing-excluded-note');
+        if (en) en.style.display = 'none';
+        var tb = document.getElementById('tbody-ageing');
+        if (tb) tb.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--text-muted);">No transaction data yet. Start counting from the operator app.</td></tr>';
+        return;
+    }
     var lmItems = filterByWarehouse(snap.lmSnapshot);
     var cmItems = filterByWarehouse(snap.cmSnapshot);
     var lm = {}, cm = {}, lmExcluded = 0, cmExcluded = 0;
@@ -1386,8 +1472,8 @@ function renderAgeingSummary() {
 
     setText('ageing-reference', 'Inventory Expiry Ageing Summary \u2014 ' + formatMonth(snap.lmMonth) + ' vs ' + formatMonth(snap.cmMonth));
     setText('ageing-lm-label', snap.isFirstMonth ? 'Last Month (baseline)' : 'Last Month');
-    setText('ageing-lm-value', snap.isFirstMonth ? '0' : lmTotal.toLocaleString());
-    setText('ageing-lm-month', snap.isFirstMonth ? 'no data yet' : formatMonth(snap.lmMonth));
+    setText('ageing-lm-value', lmTotal.toLocaleString());
+    setText('ageing-lm-month', formatMonth(snap.lmMonth) + (snap.lmHasRecords ? '' : ' \u00b7 no records'));
     setText('ageing-cm-label', 'Current Month');
     setText('ageing-cm-value', cmTotal.toLocaleString());
     setText('ageing-cm-month', formatMonth(snap.cmMonth));
@@ -1415,7 +1501,7 @@ function renderAgeingSummary() {
     if (firstNote) {
         if (snap.isFirstMonth) {
             firstNote.style.display = 'block';
-            firstNote.textContent = 'First month on record: there was no closing inventory in ' + formatMonth(snap.lmMonth) + ' (the system launched this month), so the Last Month baseline is 0. Every category below shows the full current-month quantity as an increase; comparison and cohort follow-up fully activate from next month.';
+            firstNote.textContent = 'First month on record: no inventory was recorded in ' + formatMonth(snap.lmMonth) + ', so the Last Month baseline is 0. Every category below shows the full current-month quantity as an increase; comparison and cohort follow-up fully activate from next month.';
         } else {
             firstNote.style.display = 'none';
         }
@@ -1685,11 +1771,11 @@ function renderCountrySummary() {
     });
     var body = document.getElementById('tbody-country');
     if (rows.length === 0) {
-        body.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:32px;color:var(--text-muted);">' + (items.length === 0 ? 'No inventory recorded yet.' : 'No products match the search.') + '</td></tr>';
+        body.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:32px;color:var(--text-muted);">' + (items.length === 0 ? 'No inventory recorded yet.' : 'No products match the search.') + '</td></tr>';
         return;
     }
     body.innerHTML = rows.map(function (a) {
-        var names = Object.keys(a.warehouses);
+        var le12 = a.buckets.crit + a.buckets.warn + a.buckets.notc;
         var critColor = a.buckets.crit > 0 ? ' style="color:#DC2626;font-weight:600;"' : '';
         return '<tr style="cursor:pointer;" onclick="showCountryDetail(\'' + escQuote(a.product) + '\',\'' + escQuote(a.pack || '') + '\')">' +
             '<td>' + a.product + '</td><td>' + (a.pack || '\u2014') + '</td><td>' + (a.agi || '\u2014') + '</td>' +
@@ -1697,11 +1783,10 @@ function renderCountrySummary() {
             '<td' + critColor + '>' + a.buckets.crit.toLocaleString() + '</td>' +
             '<td>' + a.buckets.warn.toLocaleString() + '</td>' +
             '<td>' + a.buckets.notc.toLocaleString() + '</td>' +
+            '<td class="expiry-12m-col">' + le12.toLocaleString() + '</td>' +
             '<td>' + a.buckets.dist.toLocaleString() + '</td>' +
             '<td>' + a.buckets.futr.toLocaleString() + '</td>' +
-            '<td><strong>' + a.total.toLocaleString() + '</strong></td>' +
-            '<td><span title="' + names.join(', ') + '">' + names.length + '</span></td>' +
-            '<td>' + (a.nearest || '\u2014') + '</td></tr>';
+            '<td><strong>' + a.total.toLocaleString() + '</strong></td></tr>';
     }).join('');
 }
 
@@ -1751,9 +1836,10 @@ function exportCountrySummary() {
     });
     var quote = function (v) { return '"' + String(v === undefined || v === null ? '' : v).trim().replace(/"/g, '""') + '"'; };
     var csv = 'Country Summary\nGenerated: ' + new Date().toLocaleString() + '\n\n';
-    csv += 'Product,Pack,AGI Code,Expired,\u22643mo,4-6mo,7-12mo,13-18mo,Future,Total Qty,Warehouses,Nearest Expiry\n';
+    csv += 'Product,Pack,AGI Code,Expired,\u22643mo,4-6mo,7-12mo,\u226412 Month,13-18mo,Future,Total Qty,Warehouses,Nearest Expiry\n';
     Object.values(agg).forEach(function (a) {
-        csv += [a.product, a.pack || '', a.agi || '', a.buckets.expired, a.buckets.crit, a.buckets.warn, a.buckets.notc, a.buckets.dist, a.buckets.futr, a.total, Object.keys(a.warehouses).join('; '), a.nearest || ''].map(quote).join(',') + '\n';
+        var le12 = a.buckets.crit + a.buckets.warn + a.buckets.notc;
+        csv += [a.product, a.pack || '', a.agi || '', a.buckets.expired, a.buckets.crit, a.buckets.warn, a.buckets.notc, le12, a.buckets.dist, a.buckets.futr, a.total, Object.keys(a.warehouses).join('; '), a.nearest || ''].map(quote).join(',') + '\n';
     });
     downloadCSV(csv, 'Country_Summary_' + new Date().toISOString().slice(0, 10) + '.csv');
 }
@@ -2002,7 +2088,7 @@ function clearLocalData() {
     document.querySelectorAll('.admin-screen').forEach(s => s.classList.remove('active'));
     document.getElementById('screen-dashboard').classList.add('active');
     renderDashboard();
-    render12M('all');
+    filter12M('all', null);
     renderInventory();
     renderActivity('all');
     renderProducts();
@@ -2187,7 +2273,7 @@ function renderAll() {
     selectedWarehouses = new Set(CONFIG.warehouses);
     rebuildWarehouseChips();
     renderDashboard();
-    render12M('all');
+    filter12M('all', null);
     renderInventory();
     renderActivityWarehouseChips();
     renderActivity('all');
@@ -2271,7 +2357,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.syncManager.init();
         window.syncManager.onSync(() => {
             if (document.getElementById('screen-dashboard').classList.contains('active')) renderDashboard();
-            if (document.getElementById('screen-12m').classList.contains('active')) render12M(currentFilter);
+            if (document.getElementById('screen-12m').classList.contains('active')) render12M();
             if (document.getElementById('screen-inventory').classList.contains('active')) renderInventory();
             if (document.getElementById('screen-activity').classList.contains('active')) { renderActivityWarehouseChips(); renderActivity(currentActivityFilter); }
             if (document.getElementById('screen-monthly').classList.contains('active')) renderMonthlyReport();
@@ -2287,7 +2373,7 @@ document.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('storage', function(e) {
     if (e.key === 'operator-data') {
         if (document.getElementById('screen-dashboard').classList.contains('active')) renderDashboard();
-        if (document.getElementById('screen-12m').classList.contains('active')) render12M(currentFilter);
+        if (document.getElementById('screen-12m').classList.contains('active')) render12M();
         if (document.getElementById('screen-inventory').classList.contains('active')) renderInventory();
         if (document.getElementById('screen-activity').classList.contains('active')) { renderActivityWarehouseChips(); renderActivity(currentActivityFilter); }
         if (document.getElementById('screen-monthly').classList.contains('active')) renderMonthlyReport();
