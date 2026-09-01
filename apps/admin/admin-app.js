@@ -409,6 +409,7 @@ function refreshCurrentScreen() {
     if (isActiveScreen('screen-dashboard')) renderDashboard();
     if (isActiveScreen('screen-12m')) render12M(currentFilter);
     if (isActiveScreen('screen-monthly')) renderMonthlyReport();
+    if (isActiveScreen('screen-country')) renderCountrySummary();
     if (isActiveScreen('screen-inventory')) renderInventory();
     if (isActiveScreen('screen-activity')) renderActivity(currentActivityFilter);
     if (isActiveScreen('screen-products')) renderProducts();
@@ -427,13 +428,14 @@ function showScreen(id, btn) {
     document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
     if (btn) btn.classList.add('active');
 
-    const titles = { 'screen-dashboard': 'Dashboard', 'screen-12m': 'Shelf Life Report', 'screen-monthly': 'Monthly Report', 'screen-inventory': 'Inventory', 'screen-activity': 'Activity Log', 'screen-edit': 'Edit Transactions', 'screen-products': 'Products', 'screen-settings': 'Settings' };
+    const titles = { 'screen-dashboard': 'Dashboard', 'screen-country': 'Country Summary', 'screen-12m': 'Shelf Life Report', 'screen-monthly': 'Monthly Report', 'screen-inventory': 'Inventory', 'screen-activity': 'Activity Log', 'screen-edit': 'Edit Transactions', 'screen-products': 'Products', 'screen-settings': 'Settings' };
     document.getElementById('page-title').textContent = titles[id] || 'Dashboard';
 
     if (id === 'screen-dashboard') renderDashboard();
     if (id === 'screen-activity') { renderActivityWarehouseChips(); renderActivity(currentActivityFilter); }
     if (id === 'screen-inventory') renderInventory();
     if (id === 'screen-12m') render12M(currentFilter || 'all');
+    if (id === 'screen-country') renderCountrySummary();
     if (id === 'screen-monthly') renderMonthlyReport();
     if (id === 'screen-edit') {
         renderEditList();
@@ -740,6 +742,11 @@ function render12M(filter) {
         expiryItems = expiryItems.filter(d => d.level === filter);
     }
 
+    const search = (document.getElementById('life-search').value || '').toLowerCase();
+    if (search) {
+        expiryItems = expiryItems.filter(d => d.product.toLowerCase().includes(search) || (d.pack || '').toLowerCase().includes(search) || (d.code || '').toLowerCase().includes(search));
+    }
+
     expiryItems.sort((a, b) => a.monthsLeft - b.monthsLeft);
     document.getElementById('filter-count').textContent = 'Showing ' + expiryItems.length + ' items';
 
@@ -806,6 +813,11 @@ function renderActivity(filter) {
     if (filter !== 'all') {
         const typeMap = { 'add': 'receive', 'sub': 'dispatch', 'adjust': 'adjustment' };
         txs = txs.filter(d => d.type === typeMap[filter]);
+    }
+
+    const search = (document.getElementById('activity-search').value || '').toLowerCase();
+    if (search) {
+        txs = txs.filter(d => (d.product || '').toLowerCase().includes(search) || (d.packSize || '').toLowerCase().includes(search) || (d.productionMonth || '').toLowerCase().includes(search) || (getAgiCode(d.product, d.packSize || '') || '').toLowerCase().includes(search) || (d.operator || '').toLowerCase().includes(search));
     }
 
     document.getElementById('activity-count').textContent = 'Showing ' + txs.length + ' entries';
@@ -983,6 +995,7 @@ function renderInventory(filter) {
             prefix: (PRODUCTS.find(p => p.name === item.product && p.pack === item.packSize) || {}).prefix || '',
             code: getAgiCode(item.product, item.packSize || ''),
             prodMonth: item.productionMonth || '',
+            expiry: item.expiryMonth || '',
             qty: item.quantity,
             warehouse: item.warehouse || '',
             monthsLeft: ml,
@@ -1027,7 +1040,7 @@ function renderInventory(filter) {
     });
 
     if (data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">' +
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted);">' +
             (search ? 'No results found' : (effFilter !== 'all' ? 'No items match this filter.' : 'No inventory data yet. Start counting from the operator app.')) +
             '</td></tr>';
         return;
@@ -1037,11 +1050,11 @@ function renderInventory(filter) {
     for (const key in groups) {
         const items = groups[key];
         const first = items[0];
-        html += '<tr style="background:var(--table-header)"><td colspan="8" style="padding:10px 16px;font-weight:600;font-size:14px;">' + first.product + ' ' + first.pack + '</td></tr>';
+        html += '<tr style="background:var(--table-header)"><td colspan="9" style="padding:10px 16px;font-weight:600;font-size:14px;">' + first.product + ' ' + first.pack + '</td></tr>';
         items.forEach(d => {
             const fefoClass = highlighted.has(d.product + '|' + d.pack + '|' + d.prodMonth) ? ' style="background:#FEF3C7;"' : '';
             var mlDisplay = d.monthsLeft !== null ? '<span class="badge badge-' + (d.level === 'distant' ? 'distant' : d.level) + '">' + (d.level === 'expired' ? 'EXPIRED' : d.monthsLeft + 'M') + '</span>' : '\u2014';
-            html += '<tr' + fefoClass + '><td>' + d.product + '</td><td>' + d.pack + '</td><td>' + (d.prefix || '\u2014') + '</td><td>' + (d.code || '\u2014') + '</td><td>' + d.prodMonth + '</td><td>' + mlDisplay + '</td><td>' + d.qty + '</td><td>' + (d.warehouse || '\u2014') + '</td></tr>';
+            html += '<tr' + fefoClass + '><td>' + d.product + '</td><td>' + d.pack + '</td><td>' + (d.prefix || '\u2014') + '</td><td>' + (d.code || '\u2014') + '</td><td>' + d.prodMonth + '</td><td>' + (d.expiry || '\u2014') + '</td><td>' + mlDisplay + '</td><td>' + d.qty + '</td><td>' + (d.warehouse || '\u2014') + '</td></tr>';
         });
     }
 
@@ -1162,6 +1175,8 @@ function exportCsv(filter, prefix) {
         return { product: item.product, pack: item.packSize, code: item.productionMonth || '', expiry: item.expiryMonth, qty: item.quantity, monthsLeft, level: getExpiryLevel(monthsLeft), range: monthsLeft <= 12 ? '12m' : '18m', warehouse: item.warehouse || '' };
     });
     if (filter && filter !== 'all') data = data.filter(d => d.level === filter);
+    const search = (document.getElementById('life-search').value || '').toLowerCase();
+    if (search) data = data.filter(d => d.product.toLowerCase().includes(search) || (d.pack || '').toLowerCase().includes(search) || (d.code || '').toLowerCase().includes(search));
     let csv = 'Product,Pack,Code,Expiry,Qty,Months Left,Level,Range,Warehouse\n';
     data.forEach(d => { csv += d.product + ',' + d.pack + ',' + d.code + ',' + d.expiry + ',' + d.qty + ',' + d.monthsLeft + ',' + d.level + ',' + d.range + ',' + d.warehouse + '\n'; });
     downloadCSV(csv, prefix + new Date().toISOString().slice(0, 10) + '.csv');
@@ -1171,11 +1186,11 @@ function exportInventory() {
     const opData = loadOperatorData();
     const search = (document.getElementById('inv-search').value || '').toLowerCase();
     let data = filterByWarehouse(opData.inventory || []).map(item => ({
-        product: item.product, pack: item.packSize, prefix: (PRODUCTS.find(p => p.name === item.product && p.pack === item.packSize) || {}).prefix || '', code: item.productionMonth || '', prodMonth: item.productionMonth || '', qty: item.quantity, warehouse: item.warehouse || ''
+        product: item.product, pack: item.packSize, prefix: (PRODUCTS.find(p => p.name === item.product && p.pack === item.packSize) || {}).prefix || '', code: item.productionMonth || '', prodMonth: item.productionMonth || '', expiry: item.expiryMonth || '', qty: item.quantity, warehouse: item.warehouse || ''
     }));
     if (search) data = data.filter(d => d.product.toLowerCase().includes(search));
-    let csv = 'Product,Pack,Prefix,Code,Prod Month,Qty,Warehouse\n';
-    data.forEach(d => { csv += d.product + ',' + d.pack + ',' + d.prefix + ',' + d.code + ',' + d.prodMonth + ',' + d.qty + ',' + d.warehouse + '\n'; });
+    let csv = 'Product,Pack,Prefix,Code,Prod Month,Expiry,Qty,Warehouse\n';
+    data.forEach(d => { csv += d.product + ',' + d.pack + ',' + d.prefix + ',' + d.code + ',' + d.prodMonth + ',' + d.expiry + ',' + d.qty + ',' + d.warehouse + '\n'; });
     downloadCSV(csv, 'Inventory_' + new Date().toISOString().slice(0, 10) + '.csv');
 }
 
@@ -1189,6 +1204,8 @@ function exportActivity() {
         const typeMap = { 'add': 'receive', 'sub': 'dispatch', 'adjust': 'adjustment' };
         filtered = filtered.filter(d => d.type === typeMap[currentActivityFilter]);
     }
+    const search = (document.getElementById('activity-search').value || '').toLowerCase();
+    if (search) filtered = filtered.filter(d => (d.product || '').toLowerCase().includes(search) || (d.packSize || '').toLowerCase().includes(search) || (d.productionMonth || '').toLowerCase().includes(search) || (getAgiCode(d.product, d.packSize || '') || '').toLowerCase().includes(search) || (d.operator || '').toLowerCase().includes(search));
     let csv = 'Date & Time,Product,Pack,AGI Code,Code,Warehouse,Type,Qty,Operator\n';
     filtered.forEach(d => {
         const typeLabels = { 'receive': 'Addition', 'dispatch': 'Subtraction', 'adjustment': 'Set' };
@@ -1207,66 +1224,141 @@ function exportProducts() {
 }
 
 // ==============================
-// MONTHLY REPORT
+// MONTHLY REPORT — INVENTORY EXPIRY AGEING + SKU COHORT FOLLOW-UP
 // ==============================
+// Reads ONLY localStorage['operator-data'] (the transaction ledger). The
+// last-month and current-month snapshots are rebuilt from that ledger using
+// the operator app's exact merge semantics — nothing here stores or mutates
+// data, every entered count keeps its source transaction.
+
+const AGE_BUCKET_LABELS = { expired: 'Expired', crit: 'Expiring \u22643mo', warn: 'Expiring 4-6mo', notc: 'Expiring 7-12mo', dist: 'Expiring 13-18mo', futr: 'Future >18mo' };
+const AGE_BUCKET_ORDER = ['expired', 'crit', 'warn', 'notc', 'dist', 'futr'];
+const AGE_BUCKET_RANK = { expired: 0, crit: 1, warn: 2, notc: 3, dist: 4, futr: 5 };
+
+function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+function setText(id, text) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = text;
+}
 
 function formatMonth(ym) {
     if (!ym) return '\u2014';
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     var d = new Date(ym + '-01');
     if (isNaN(d.getTime())) return '\u2014';
-    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     return months[d.getMonth()] + ' ' + d.getFullYear();
 }
 
-function initMonthlyReportDropdowns(availableMonths) {
-    var startSel = document.getElementById('monthly-start');
-    var endSel = document.getElementById('monthly-end');
-    if (!startSel || !endSel || !availableMonths || availableMonths.length === 0) return;
-    var currentOpts = Array.from(startSel.options).map(function (o) { return o.value; }).join(',');
-    var newOpts = availableMonths.join(',');
-    if (currentOpts === newOpts) return;
-    startSel.innerHTML = availableMonths.map(function (m) {
-        return '<option value="' + m + '">' + formatMonth(m) + '</option>';
-    }).join('');
-    endSel.innerHTML = availableMonths.map(function (m) {
-        return '<option value="' + m + '">' + formatMonth(m) + '</option>';
-    }).join('');
-    if (availableMonths.length >= 2) {
-        startSel.value = availableMonths[availableMonths.length - 2];
-        endSel.value = availableMonths[availableMonths.length - 1];
-    } else if (availableMonths.length === 1) {
-        startSel.value = availableMonths[0];
-        endSel.value = availableMonths[0];
-    }
+function parseEntryDate(tx) {
+    var ts = tx.timestamp;
+    if (ts) { var d = new Date(ts); if (!isNaN(d.getTime())) return d.getTime(); }
+    if (tx.date) { var d2 = new Date(tx.date); if (!isNaN(d2.getTime())) return d2.getTime(); }
+    return 0; // undated → treated as earliest, present in every snapshot
 }
 
-function indexByProduct(rows) {
-    var idx = {};
-    (rows || []).forEach(function (r) {
-        var key = (r.product || '') + '|' + (r.pack_size || '') + '|' + (r.production_month || '');
-        idx[key] = (idx[key] || 0) + (r.quantity || 0);
+function monthEndOf(ym) {
+    if (!ym) return 0;
+    var d = new Date(parseInt(ym.slice(0, 4)), parseInt(ym.slice(5, 7)), 1);
+    d.setMonth(d.getMonth() + 1, 0);
+    d.setHours(23, 59, 59, 999);
+    return d.getTime();
+}
+
+function monthStartOf(ym) {
+    if (!ym) return 0;
+    return new Date(parseInt(ym.slice(0, 4)), parseInt(ym.slice(5, 7)), 1, 0, 0, 0, 0).getTime();
+}
+
+// Rebuild inventory at a cutoff from the ledger, mirroring the operator
+// app's merge: key = product|pack|productionMonth|warehouse.
+function rebuildInventoryAt(cutoffTs) {
+    var opData = loadOperatorData();
+    var txs = (opData.transactions || []).filter(function (t) { return parseEntryDate(t) <= cutoffTs; });
+    txs.sort(function (a, b) { return parseEntryDate(a) - parseEntryDate(b); });
+    var inv = {};
+    txs.forEach(function (t) {
+        var qty = t.quantity || 0;
+        var key = (t.product || '') + '|' + (t.packSize || '') + '|' + (t.productionMonth || '') + '|' + (t.warehouse || '');
+        var cur = inv[key];
+        if (t.type === 'receive') {
+            if (cur) cur.qty += qty;
+            else inv[key] = { product: t.product, pack: t.packSize, productionMonth: t.productionMonth || '', expiryMonth: t.expiryMonth || '', qty: qty, warehouse: t.warehouse || '' };
+        } else if (t.type === 'dispatch') {
+            if (cur) { cur.qty = Math.max(0, cur.qty - qty); if (cur.qty === 0) delete inv[key]; }
+        } else if (t.type === 'adjustment') {
+            if (cur) cur.qty = qty;
+            else if (qty > 0) inv[key] = { product: t.product, pack: t.packSize, productionMonth: t.productionMonth || '', expiryMonth: t.expiryMonth || '', qty: qty, warehouse: t.warehouse || '' };
+        }
     });
-    return idx;
+    return Object.values(inv).filter(function (i) { return i.qty > 0; });
+}
+
+function computeMonthSnapshots() {
+    var txs = (loadOperatorData().transactions || []);
+    var latest = 0;
+    txs.forEach(function (t) { var ts = parseEntryDate(t); if (ts > latest) latest = ts; });
+    var skipped = txs.filter(function (t) { return parseEntryDate(t) === 0; }).length;
+    var empty = { lmMonth: '', cmMonth: '', lmEnd: 0, cmEnd: 0, lmStart: 0, cmStart: 0, lmSnapshot: [], cmSnapshot: [], skipped: skipped, isFirstMonth: true };
+    if (!latest) return empty;
+    var d = new Date(latest);
+    var cmMonth = d.getFullYear() + '-' + pad2(d.getMonth() + 1);
+    var cmEnd = monthEndOf(cmMonth);
+    var lmD = new Date(cmEnd); lmD.setDate(1); lmD.setMonth(lmD.getMonth() - 1);
+    var lmMonth = lmD.getFullYear() + '-' + pad2(lmD.getMonth() + 1);
+    var lmEnd = monthEndOf(lmMonth);
+    var lmSnapshot = rebuildInventoryAt(lmEnd);
+    return {
+        lmMonth: lmMonth, cmMonth: cmMonth, lmEnd: lmEnd, cmEnd: cmEnd,
+        lmStart: monthStartOf(lmMonth), cmStart: monthStartOf(cmMonth),
+        lmSnapshot: lmSnapshot, cmSnapshot: rebuildInventoryAt(cmEnd),
+        skipped: skipped,
+        isFirstMonth: lmSnapshot.length === 0
+    };
+}
+
+function expiryMonthTs(expiryStr) {
+    var m = String(expiryStr || '').trim().split(' ');
+    if (m.length !== 2) return NaN;
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var mi = months.indexOf(m[0]);
+    var y = parseInt(m[1], 10);
+    if (mi < 0 || isNaN(y)) return NaN;
+    var d = new Date(y, mi, 1); d.setMonth(d.getMonth() + 1, 0); d.setHours(23, 59, 59, 999);
+    return d.getTime();
+}
+
+function ageBucketOf(expiryStr, refEnd) {
+    var ee = expiryMonthTs(expiryStr);
+    if (isNaN(ee)) return null;
+    var a = new Date(ee), b = new Date(refEnd);
+    var months = (a.getFullYear() - b.getFullYear()) * 12 + (a.getMonth() - b.getMonth());
+    if (months < 0) return 'expired';
+    if (months <= 3) return 'crit';
+    if (months <= 6) return 'warn';
+    if (months <= 12) return 'notc';
+    if (months <= 18) return 'dist';
+    return 'futr';
+}
+
+function monthsLeftFrom(expiryStr, refEnd) {
+    var ee = expiryMonthTs(expiryStr);
+    if (isNaN(ee)) return null;
+    var a = new Date(ee), b = new Date(refEnd);
+    return (a.getFullYear() - b.getFullYear()) * 12 + (a.getMonth() - b.getMonth());
+}
+
+function ageBadgeClass(b) {
+    return { expired: 'badge-expired', crit: 'badge-critical', warn: 'badge-warning', notc: 'badge-notice', dist: 'badge-distant', futr: 'badge-distant' }[b] || 'badge-notice';
+}
+
+function ageRowClass(b) {
+    return { expired: 'row-expired', crit: 'row-critical', warn: 'row-warning', notc: 'row-notice' }[b] || '';
 }
 
 function renderMonthlyReport() {
-    var currentMonthEl = document.getElementById('monthly-current-month');
-    if (currentMonthEl) currentMonthEl.textContent = 'Monthly Stock Movement';
-    if (typeof syncManager === 'undefined' || !syncManager.getMonthlySnapshots) { showNoData(); return; }
-    syncManager.getMonthlySnapshots().then(function (snapshots) {
-        snapshots = snapshots || [];
-        snapshots = filterByWarehouse(snapshots);
-        var monthSet = {};
-        snapshots.forEach(function (s) { monthSet[s.snapshot_month] = true; });
-        var availableMonths = Object.keys(monthSet).sort();
-        if (availableMonths.length === 0) { showNoData(); return; }
-        initMonthlyReportDropdowns(availableMonths);
-        var startSel = document.getElementById('monthly-start');
-        var endSel = document.getElementById('monthly-end');
-        var lmMonth = startSel ? startSel.value : availableMonths[0];
-        var cmMonth = endSel ? endSel.value : availableMonths[availableMonths.length - 1];
-        renderMonthly(snapshots, lmMonth, cmMonth);
-    });
+    renderAgeingSummary();
+    renderCohortFollowup();
 }
 
 function setText(id, text) {
@@ -1274,235 +1366,396 @@ function setText(id, text) {
     if (el) el.textContent = text;
 }
 
-function showNoData() {
-    setText('monthly-lm-value', '--');
-    setText('monthly-lm-month', '');
-    setText('monthly-cm-value', '--');
-    setText('monthly-cm-month', '');
-    var deltaEl = document.getElementById('monthly-total-delta');
-    if (deltaEl) {
-        var dv = deltaEl.querySelector('.delta-value');
-        if (dv) { dv.textContent = '--'; dv.style.color = ''; }
-        var dl = deltaEl.querySelector('.delta-label');
-        if (dl) dl.textContent = 'Change';
-    }
-    ['expired','medium','short'].forEach(function (b) {
-        setText('bucket-values-' + b, '--');
-        var el = document.getElementById('bucket-delta-' + b);
-        if (el) { el.textContent = '--'; el.className = 'bucket-change-delta'; }
+function renderAgeingSummary() {
+    var snap = computeMonthSnapshots();
+    var lmItems = filterByWarehouse(snap.lmSnapshot);
+    var cmItems = filterByWarehouse(snap.cmSnapshot);
+    var lm = {}, cm = {}, lmExcluded = 0, cmExcluded = 0;
+    lmItems.forEach(function (i) {
+        if (!i.expiryMonth) { lmExcluded += i.qty; return; }
+        var b = ageBucketOf(i.expiryMonth, snap.lmEnd) || 'futr';
+        lm[b] = (lm[b] || 0) + i.qty;
     });
-    var body = document.getElementById('tbody-sku-change');
-    if (body) body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted);">No snapshot data. Click "Capture Snapshot" to record inventory.</td></tr>';
-}
+    cmItems.forEach(function (i) {
+        if (!i.expiryMonth) { cmExcluded += i.qty; return; }
+        var b = ageBucketOf(i.expiryMonth, snap.cmEnd) || 'futr';
+        cm[b] = (cm[b] || 0) + i.qty;
+    });
+    var lmTotal = lmItems.reduce(function (s, i) { return s + i.qty; }, 0);
+    var cmTotal = cmItems.reduce(function (s, i) { return s + i.qty; }, 0);
 
-const BUCKET_LABELS = { expired: 'Expired Stock', medium: '7-12 Months', short: '\u22646 Months' };
+    setText('ageing-reference', 'Inventory Expiry Ageing Summary \u2014 ' + formatMonth(snap.lmMonth) + ' vs ' + formatMonth(snap.cmMonth));
+    setText('ageing-lm-label', snap.isFirstMonth ? 'Last Month (baseline)' : 'Last Month');
+    setText('ageing-lm-value', snap.isFirstMonth ? '0' : lmTotal.toLocaleString());
+    setText('ageing-lm-month', snap.isFirstMonth ? 'no data yet' : formatMonth(snap.lmMonth));
+    setText('ageing-cm-label', 'Current Month');
+    setText('ageing-cm-value', cmTotal.toLocaleString());
+    setText('ageing-cm-month', formatMonth(snap.cmMonth));
 
-function bucketOf(row) {
-    var age = row.age_months || 0;
-    if (age >= 12) return 'expired';
-    if (age >= 6) return 'medium';
-    return 'short';
-}
-
-function sumRows(rows) {
-    return (rows || []).reduce(function (s, r) { return s + (r.quantity || 0); }, 0);
-}
-
-function renderMonthly(snapshots, lmMonth, cmMonth) {
-    var isSingle = lmMonth === cmMonth;
-    var lmRows = snapshots.filter(function (s) { return s.snapshot_month === lmMonth; });
-    var cmRows = snapshots.filter(function (s) { return s.snapshot_month === cmMonth; });
-    renderTotalCompare(lmRows, cmRows, lmMonth, cmMonth, isSingle);
-    renderBucketChange(lmRows, cmRows, isSingle);
-    renderSkuChange(lmRows, cmRows, isSingle);
-}
-
-function renderTotalCompare(lmRows, cmRows, lmMonth, cmMonth, isSingle) {
-    var lmTotal = sumRows(lmRows);
-    var cmTotal = sumRows(cmRows);
-    setText('monthly-lm-value', isSingle ? '\u2014' : lmTotal.toLocaleString());
-    setText('monthly-lm-month', isSingle ? '' : formatMonth(lmMonth));
-    setText('monthly-cm-value', cmTotal.toLocaleString());
-    setText('monthly-cm-month', formatMonth(cmMonth));
-    var deltaEl = document.getElementById('monthly-total-delta');
+    var deltaEl = document.getElementById('ageing-total-delta');
     if (deltaEl) {
-        var dv = deltaEl.querySelector('.delta-value');
+        var dv = document.getElementById('ageing-delta-value');
         var dl = deltaEl.querySelector('.delta-label');
-        if (isSingle) {
-            if (dv) { dv.textContent = 'First snapshot'; dv.style.color = ''; }
-            if (dl) dl.textContent = 'Mode';
+        var diff = cmTotal - lmTotal;
+        if (snap.isFirstMonth) {
+            if (dv) { dv.textContent = '+' + cmTotal.toLocaleString() + ' (new)'; dv.style.color = '#DC2626'; }
+            if (dl) dl.textContent = 'Change';
         } else {
-            var diff = cmTotal - lmTotal;
             var pct = lmTotal > 0 ? ((diff / lmTotal) * 100) : 0;
             var sign = diff >= 0 ? '+' : '';
             if (dv) {
-                dv.textContent = sign + diff.toLocaleString() + ' (' + sign + pct.toFixed(1) + '%)';
+                dv.textContent = diff === 0 ? '0' : sign + diff.toLocaleString() + ' (' + sign + pct.toFixed(1) + '%)';
                 dv.style.color = diff <= 0 ? '#16A34A' : '#DC2626';
             }
             if (dl) dl.textContent = diff <= 0 ? 'Reduction' : 'Increase';
         }
     }
-}
 
-function renderBucketChange(lmRows, cmRows, isSingle) {
-    ['expired','medium','short'].forEach(function (b) {
-        var lmQty = sumRows(lmRows.filter(function (r) { return bucketOf(r) === b; }));
-        var cmQty = sumRows(cmRows.filter(function (r) { return bucketOf(r) === b; }));
-        setText('bucket-values-' + b, lmQty.toLocaleString() + ' \u2192 ' + cmQty.toLocaleString());
-        var el = document.getElementById('bucket-delta-' + b);
-        if (!el) return;
-        if (isSingle) {
-            el.textContent = '\u2014';
-            el.className = 'bucket-change-delta';
-            return;
+    var firstNote = document.getElementById('ageing-first-month-note');
+    if (firstNote) {
+        if (snap.isFirstMonth) {
+            firstNote.style.display = 'block';
+            firstNote.textContent = 'First month on record: there was no closing inventory in ' + formatMonth(snap.lmMonth) + ' (the system launched this month), so the Last Month baseline is 0. Every category below shows the full current-month quantity as an increase; comparison and cohort follow-up fully activate from next month.';
+        } else {
+            firstNote.style.display = 'none';
         }
-        var diff = cmQty - lmQty;
-        var pct = lmQty > 0 ? ((diff / lmQty) * 100) : (cmQty > 0 ? null : 0);
-        var arrow = diff > 0 ? '\u25B2 ' : (diff < 0 ? '\u25BC ' : '');
-        var pctStr = pct === null ? 'new' : (diff >= 0 ? '+' : '') + pct.toFixed(1) + '%';
-        el.textContent = arrow + (diff > 0 ? '+' : '') + diff.toLocaleString() + (pct === null ? ' (new)' : ' (' + pctStr + ')');
-        el.className = 'bucket-change-delta' + (diff > 0 ? ' movement-up' : (diff < 0 ? ' movement-down' : ''));
-    });
+    }
+    var excludedNote = document.getElementById('ageing-excluded-note');
+    if (excludedNote) {
+        var ex = lmExcluded + cmExcluded;
+        if (ex > 0) {
+            excludedNote.style.display = 'block';
+            excludedNote.textContent = ex.toLocaleString() + ' carton' + (ex === 1 ? '' : 's') + ' across the two snapshots have no expiry date recorded and are excluded from the bucketing above (still counted in the totals).';
+        } else {
+            excludedNote.style.display = 'none';
+        }
+    }
+
+    var tbody = document.getElementById('tbody-ageing');
+    tbody.innerHTML = AGE_BUCKET_ORDER.map(function (b) {
+        var lmq = lm[b] || 0, cmq = cm[b] || 0;
+        var diff = cmq - lmq;
+        var deltaHtml;
+        if (snap.isFirstMonth) {
+            deltaHtml = '<span style="color:#DC2626;font-weight:600;">+' + cmq.toLocaleString() + '</span>';
+        } else if (lmq === 0 && cmq === 0) {
+            deltaHtml = '<span style="color:#6B7280;">0</span>';
+        } else {
+            var pct = lmq > 0 ? ((diff / lmq) * 100) : (cmq > 0 ? null : 0);
+            var arrow = diff > 0 ? '\u25B2 ' : (diff < 0 ? '\u25BC ' : '');
+            var pctStr = pct === null ? 'new' : (diff >= 0 ? '+' : '') + pct.toFixed(1) + '%';
+            var color = diff > 0 ? '#DC2626' : (diff < 0 ? '#16A34A' : '#6B7280');
+            deltaHtml = '<span style="color:' + color + ';font-weight:600;">' + arrow + (diff > 0 ? '+' : '') + diff.toLocaleString() + (pct === null ? ' (new)' : ' (' + pctStr + ')') + '</span>';
+        }
+        return '<tr class="' + ageRowClass(b) + '"><td><span class="badge ' + ageBadgeClass(b) + '">' + AGE_BUCKET_LABELS[b] + '</span>' +
+            (b === 'futr' ? '' : ' <a href="javascript:void(0)" onclick="showAgeingDrilldown(\'' + b + '\')" style="font-size:12px;color:#16A34A;margin-left:6px;">view \u2192</a>') +
+            '</td><td>' + lmq.toLocaleString() + '</td><td>' + cmq.toLocaleString() + '</td><td>' + deltaHtml + '</td></tr>';
+    }).join('');
 }
 
-function renderSkuChange(lmRows, cmRows, isSingle) {
-    var body = document.getElementById('tbody-sku-change');
-    if (!body) return;
-    var lmIdx = indexByProduct(lmRows);
-    var cmIdx = indexByProduct(cmRows);
-    var bucketByKey = {};
-    lmRows.concat(cmRows).forEach(function (r) {
-        var key = (r.product || '') + '|' + (r.pack_size || '') + '|' + (r.production_month || '');
-        bucketByKey[key] = bucketOf(r);
+function showAgeingDrilldown(bucket) {
+    var snap = computeMonthSnapshots();
+    var items = filterByWarehouse(snap.cmSnapshot).filter(function (i) { return i.expiryMonth && ageBucketOf(i.expiryMonth, snap.cmEnd) === bucket; });
+    document.getElementById('drilldown-title').textContent = AGE_BUCKET_LABELS[bucket] + ' \u2014 current month stock (' + items.length + ' lot' + (items.length === 1 ? '' : 's') + ')';
+    var tbody = document.getElementById('tbody-drilldown');
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">No lots in this bucket for the current month.</td></tr>';
+    } else {
+        tbody.innerHTML = items.map(function (i) {
+            var ml = monthsLeftFrom(i.expiryMonth, snap.cmEnd);
+            var badge = ml === null ? '\u2014' : '<span class="badge ' + ageBadgeClass(ml < 0 ? 'expired' : (ml <= 3 ? 'crit' : (ml <= 6 ? 'warn' : (ml <= 12 ? 'notc' : 'dist')))) + '">' + (ml < 0 ? 'EXPIRED' : ml + 'M') + '</span>';
+            return '<tr class="' + ageRowClass(bucket) + '"><td>' + i.product + '</td><td>' + (i.pack || '\u2014') + '</td><td>' + (i.productionMonth || '\u2014') + '</td><td>' + i.expiryMonth + '</td><td>' + i.qty.toLocaleString() + '</td><td>' + badge + '</td><td>' + (i.warehouse || '\u2014') + '</td></tr>';
+        }).join('');
+    }
+    document.getElementById('drilldown-modal').classList.add('open');
+}
+
+function exportAgeingSummary() {
+    var snap = computeMonthSnapshots();
+    var lmItems = filterByWarehouse(snap.lmSnapshot);
+    var cmItems = filterByWarehouse(snap.cmSnapshot);
+    var lm = {}, cm = {};
+    lmItems.forEach(function (i) { if (i.expiryMonth) { var b = ageBucketOf(i.expiryMonth, snap.lmEnd) || 'futr'; lm[b] = (lm[b] || 0) + i.qty; } });
+    cmItems.forEach(function (i) { if (i.expiryMonth) { var b = ageBucketOf(i.expiryMonth, snap.cmEnd) || 'futr'; cm[b] = (cm[b] || 0) + i.qty; } });
+    var lmTotal = lmItems.reduce(function (s, i) { return s + i.qty; }, 0);
+    var cmTotal = cmItems.reduce(function (s, i) { return s + i.qty; }, 0);
+    var quote = function (v) { return '"' + String(v === undefined || v === null ? '' : v).trim().replace(/"/g, '""') + '"'; };
+    var csv = 'Inventory Expiry Ageing Summary\nReference: ' + formatMonth(snap.lmMonth) + ' vs ' + formatMonth(snap.cmMonth) + '\n';
+    csv += (snap.isFirstMonth ? 'First month on record - last month baseline is 0.\n' : '') + '\n';
+    csv += 'Category,Last Month Qty,Current Month Qty,Change\n';
+    AGE_BUCKET_ORDER.forEach(function (b) {
+        var lmq = lm[b] || 0, cmq = cm[b] || 0;
+        var diff = cmq - lmq;
+        var chg = snap.isFirstMonth ? '+' + cmq : (diff > 0 ? '+' : '') + diff;
+        csv += quote(AGE_BUCKET_LABELS[b]) + ',' + lmq + ',' + cmq + ',' + chg + '\n';
     });
-    var allKeys = {};
-    Object.keys(lmIdx).forEach(function (k) { allKeys[k] = true; });
-    Object.keys(cmIdx).forEach(function (k) { allKeys[k] = true; });
-    var keys = Object.keys(allKeys);
-    if (keys.length === 0) {
-        body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted);">No snapshot data. Click "Capture Snapshot" to record inventory.</td></tr>';
+    csv += 'Total,' + lmTotal + ',' + cmTotal + ',' + (snap.isFirstMonth ? '+' : (cmTotal - lmTotal > 0 ? '+' : '')) + (cmTotal - lmTotal) + '\n';
+    downloadCSV(csv, 'Ageing_Summary_' + new Date().toISOString().slice(0, 10) + '.csv');
+}
+
+// ==============================
+// SECTION 2 — SKU-LEVEL FOLLOW-UP COHORT (last month's \u226412-month risk)
+// ==============================
+
+function buildCohort() {
+    var snap = computeMonthSnapshots();
+    var lmItems = filterByWarehouse(snap.lmSnapshot);
+    var cmItems = filterByWarehouse(snap.cmSnapshot);
+    var cohort = {};
+    lmItems.forEach(function (i) {
+        if (!i.expiryMonth) return;
+        var b = ageBucketOf(i.expiryMonth, snap.lmEnd);
+        if (b === null || b === 'dist' || b === 'futr') return;
+        var key = (i.product || '') + '|' + (i.pack || '') + '|' + (i.productionMonth || '');
+        var row = cohort[key];
+        if (!row) cohort[key] = { product: i.product, pack: i.pack, code: i.productionMonth || '', expiry: i.expiryMonth, lmQty: 0, lmBucket: b };
+        cohort[key].lmQty += i.qty;
+        if (expiryMonthTs(i.expiryMonth) < expiryMonthTs(cohort[key].expiry)) cohort[key].expiry = i.expiryMonth;
+    });
+    var cmQtyByKey = {}, cmTouchedByKey = {};
+    cmItems.forEach(function (i) {
+        var key = (i.product || '') + '|' + (i.pack || '') + '|' + (i.productionMonth || '');
+        cmQtyByKey[key] = (cmQtyByKey[key] || 0) + i.qty;
+        cmTouchedByKey[key] = true;
+    });
+    filterByWarehouse(loadOperatorData().transactions).forEach(function (t) {
+        var ts = parseEntryDate(t);
+        if (ts >= snap.cmStart && ts <= snap.cmEnd) {
+            var key = (t.product || '') + '|' + (t.packSize || '') + '|' + (t.productionMonth || '');
+            cmTouchedByKey[key] = true;
+        }
+    });
+    var rows = Object.keys(cohort).map(function (key) {
+        var r = cohort[key];
+        var cmQty = cmQtyByKey[key] || 0;
+        var cmBucket = ageBucketOf(r.expiry, snap.cmEnd) || 'futr';
+        var net = cmQty - r.lmQty;
+        var cleared = cmQty === 0;
+        var absent = cleared && !cmTouchedByKey[key];
+        var increased = cmQty > r.lmQty;
+        var reduced = cmQty > 0 && cmQty < r.lmQty;
+        var statusText = cleared ? (absent ? 'Absent in CM \u2014 verify cleared' : 'Fully cleared from inventory') : (increased ? 'Exposure increased' : (reduced ? 'Exposure reduced' : 'No change'));
+        var statusCls = cleared ? (absent ? '' : 'movement-down') : (increased ? 'movement-up' : (reduced ? 'movement-down' : ''));
+        return { r: r, key: key, cmQty: cmQty, cmBucket: cmBucket, net: net, redPct: r.lmQty > 0 ? ((r.lmQty - cmQty) / r.lmQty * 100) : 0, ml: monthsLeftFrom(r.expiry, snap.cmEnd), statusText: statusText, statusCls: statusCls, absent: absent, cleared: cleared, increased: increased };
+    });
+    rows.sort(function (a, b) {
+        var ra = AGE_BUCKET_RANK[a.cmBucket], rb = AGE_BUCKET_RANK[b.cmBucket];
+        if (ra !== rb) return ra - rb;
+        if (b.cmQty !== a.cmQty) return b.cmQty - a.cmQty;
+        return b.net - a.net;
+    });
+    var stats = {
+        snap: snap, rows: rows,
+        riskBatches: rows.length,
+        lmRisk: rows.reduce(function (s, r) { return s + r.r.lmQty; }, 0),
+        cmRemain: rows.reduce(function (s, r) { return s + r.cmQty; }, 0),
+        cleared: rows.filter(function (r) { return r.cleared; }).length,
+        increased: rows.filter(function (r) { return r.increased; }).length,
+        absent: rows.filter(function (r) { return r.absent; }).length
+    };
+    stats.reduction = stats.lmRisk - stats.cmRemain;
+    stats.redPct = stats.lmRisk > 0 ? (stats.reduction / stats.lmRisk * 100) : null;
+    stats.nowRiskQty = cmItems.filter(function (i) { return i.expiryMonth && (ageBucketOf(i.expiryMonth, snap.cmEnd) === 'expired' || ageBucketOf(i.expiryMonth, snap.cmEnd) === 'crit'); }).reduce(function (s, i) { return s + i.qty; }, 0);
+    return stats;
+}
+
+function cohortKpiChip(title, value, extra, color) {
+    return '<div class="bucket-change-card"><div class="bucket-change-title">' + title + '</div>' +
+        '<div class="bucket-change-values"' + (color ? ' style="color:' + color + ';"' : '') + '>' + value + '</div>' +
+        (extra ? '<div class="bucket-change-delta">' + extra + '</div>' : '') + '</div>';
+}
+
+function renderCohortFollowup() {
+    var c = buildCohort();
+    setText('cohort-reference', 'SKU-Level Follow-up: ' + formatMonth(c.snap.lmMonth) + ' \u226412-Month Expiry-Risk Cohort \u2014 vs ' + formatMonth(c.snap.cmMonth));
+
+    var kpis = document.getElementById('cohort-kpis');
+    var redPctStr = c.redPct === null ? '\u2014' : c.redPct.toFixed(1) + '%';
+    kpis.innerHTML =
+        cohortKpiChip('Risk Batches', c.riskBatches, 'from last month') +
+        cohortKpiChip(formatMonth(c.snap.lmMonth) + ' Risk Qty', c.lmRisk.toLocaleString()) +
+        cohortKpiChip(formatMonth(c.snap.cmMonth) + ' Remaining', c.cmRemain.toLocaleString()) +
+        cohortKpiChip('Qty Reduction', c.reduction.toLocaleString(), redPctStr, c.reduction < 0 ? '#DC2626' : (c.reduction > 0 ? '#16A34A' : '')) +
+        cohortKpiChip('Fully Cleared \u2713', c.cleared, 'green status', '#16A34A') +
+        cohortKpiChip('Increased Exposure \u25B2', c.increased, 'red status', c.increased > 0 ? '#DC2626' : '') +
+        cohortKpiChip('Now Expired / \u22643mo', c.nowRiskQty.toLocaleString(), 'current stock', c.nowRiskQty > 0 ? '#EA580C' : '') +
+        cohortKpiChip('Absent in CM', c.absent, 'verify', c.absent > 0 ? '#D97706' : '');
+
+    var tbody = document.getElementById('tbody-cohort');
+    if (c.rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text-muted);">' +
+            (c.snap.isFirstMonth ? 'No prior-month \u226412-month cohort yet. Baseline builds from the first full month of operation.' : 'No last-month items fell inside the \u226412-month expiry window.') +
+            '</td></tr>';
         return;
     }
-    var items = keys.map(function (key) {
-        var parts = key.split('|');
-        var lmQty = lmIdx[key] || 0;
-        var cmQty = cmIdx[key] || 0;
-        var delta = cmQty - lmQty;
-        var deltaPct = lmQty > 0 ? ((delta / lmQty) * 100) : (cmQty > 0 ? null : 0);
-        return { name: parts[0] || '', pack: parts[1] || '', bucket: bucketByKey[key] || 'short', lmQty: lmQty, cmQty: cmQty, delta: delta, deltaPct: deltaPct };
-    });
-    items.sort(function (a, b) { return Math.abs(b.delta) - Math.abs(a.delta); });
-    var badge = function (b) {
-        var cls = b === 'expired' ? 'badge-expired' : (b === 'medium' ? 'badge-notice' : 'badge-warning');
-        return '<span class="badge ' + cls + '">' + BUCKET_LABELS[b] + '</span>';
-    };
-    var lmTotal = 0, cmTotal = 0;
-    body.innerHTML = items.map(function (r) {
-        lmTotal += r.lmQty; cmTotal += r.cmQty;
-        var first = r.name ? r.name : r.pack;
-        if (isSingle) {
-            return '<tr><td>' + first + '</td><td>' + (r.pack ? r.pack : '\u2014') + '</td><td>' + badge(r.bucket) +
-                '</td><td>\u2014</td><td>' + r.cmQty.toLocaleString() + '</td><td>\u2014</td><td>\u2014</td></tr>';
-        }
-        var cls = r.delta > 0 ? 'movement-up' : (r.delta < 0 ? 'movement-down' : '');
-        var dsp = r.deltaPct === null ? 'New' : (r.deltaPct === 0 ? '\u2014' : (r.delta > 0 ? '+' : '') + r.deltaPct.toFixed(1) + '%');
-        return '<tr><td>' + first + '</td><td>' + (r.pack ? r.pack : '\u2014') + '</td><td>' + badge(r.bucket) +
-            '</td><td>' + r.lmQty.toLocaleString() + '</td><td>' + r.cmQty.toLocaleString() + '</td><td class="' + cls + '">' +
-            (r.delta > 0 ? '+' : '') + r.delta.toLocaleString() + '</td><td class="' + cls + '">' + dsp + '</td></tr>';
-    }).join('') +
-    '<tr class="total-row"><td colspan="3"><strong>Total</strong></td><td><strong>' + lmTotal.toLocaleString() +
-    '</strong></td><td><strong>' + cmTotal.toLocaleString() + '</strong></td><td><strong>' +
-    (isSingle ? '\u2014' : (cmTotal - lmTotal > 0 ? '+' : '') + (cmTotal - lmTotal).toLocaleString()) + '</strong></td><td><strong>' +
-    (isSingle ? '\u2014' : (lmTotal > 0 ? ((cmTotal - lmTotal) / lmTotal * 100).toFixed(1) + '%' : '\u2014')) + '</strong></td></tr>';
+    tbody.innerHTML = c.rows.map(function (d) {
+        var monthsLeftStr = d.ml === null ? '\u2014' : (d.ml < 0 ? '<span style="color:#DC2626;font-weight:600;">EXPIRED</span>' : d.ml + 'M');
+        var statusColor = d.statusCls === 'movement-up' ? '#DC2626' : (d.statusCls === 'movement-down' ? '#16A34A' : '');
+        var netHtml = '<span class="' + (d.net > 0 ? 'movement-up' : (d.net < 0 ? 'movement-down' : '')) + '">' + (d.net > 0 ? '+' : '') + d.net.toLocaleString() + '</span>';
+        var statusHtml = '<span style="' + (statusColor ? 'color:' + statusColor + ';' : '') + 'font-weight:600;">' + d.statusText + '</span>';
+        if (d.absent) statusHtml += '<br><span style="background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;padding:1px 6px;border-radius:4px;font-size:11px;display:inline-block;margin-top:3px;">Absent in CM \u2014 verify</span>';
+        return '<tr class="' + ageRowClass(d.cmBucket) + '" style="cursor:pointer;" onclick="showCohortDetail(\'' + escQuote(d.r.product) + '\',\'' + escQuote(d.r.pack || '') + '\',\'' + escQuote(d.r.code || '') + '\')">' +
+            '<td>' + d.r.product + '</td><td>' + (d.r.pack || '\u2014') + '</td><td>' + (d.r.code || '\u2014') + '</td>' +
+            '<td style="' + (d.cmBucket === 'expired' ? 'color:#DC2626;font-weight:600;' : (d.cmBucket === 'crit' ? 'color:#EA580C;font-weight:600;' : '')) + '">' + d.r.expiry + '</td>' +
+            '<td><span class="badge ' + ageBadgeClass(d.r.lmBucket) + '">' + AGE_BUCKET_LABELS[d.r.lmBucket] + '</span></td>' +
+            '<td>' + d.r.lmQty.toLocaleString() + '</td><td>' + d.cmQty.toLocaleString() + '</td><td>' + netHtml + '</td>' +
+            '<td>' + (d.r.lmQty > 0 ? d.redPct.toFixed(1) + '%' : '\u2014') + '</td><td>' + monthsLeftStr + '</td><td>' + statusHtml + '</td></tr>';
+    }).join('');
 }
 
-function exportMonthlyReport() {
-    var cell = function (v) {
-        return '"' + String(v === undefined || v === null ? '' : v).trim().replace(/"/g, '""') + '"';
-    };
-    var q = function (sel) {
-        var el = document.querySelector(sel);
-        return el ? el.textContent.trim() : '';
-    };
-    var splitArrow = function (s) {
-        var parts = s.split('\u2192');
-        return parts.length === 2 ? [parts[0].trim(), parts[1].trim()] : [s, ''];
-    };
-    var csv = 'Monthly Report: Stock Movement\nGenerated: ' + new Date().toLocaleString() + '\n\n';
-    csv += '### Overview\nMetric,LM Qty,CM Qty,Delta\n';
-    var overview = [
-        ['Total Inventory', q('#monthly-lm-value'), q('#monthly-cm-value'), q('#monthly-total-delta .delta-value')]
-    ];
-    [['Expired Stock','#bucket-values-expired','#bucket-delta-expired'],['7-12 Months','#bucket-values-medium','#bucket-delta-medium'],['\u22646 Months','#bucket-values-short','#bucket-delta-short']].forEach(function (b) {
-        var parts = splitArrow(q(b[1]));
-        overview.push([b[0], parts[0], parts[1], q(b[2])]);
-    });
-    csv += overview.map(function (r) { return r.map(cell).join(','); }).join('\n');
-    csv += '\n\n### SKU-wise Change\nProduct,Pack,Bucket,LM Qty,CM Qty,Delta,Delta%\n';
-    var body = document.getElementById('tbody-sku-change');
-    if (body) {
-        body.querySelectorAll('tr').forEach(function (tr) {
-            var cells = tr.querySelectorAll('td');
-            if (cells.length >= 7) {
-                csv += Array.from(cells).map(function (c) { return cell(c.textContent); }).join(',') + '\n';
-            }
-        });
+function showCohortDetail(product, pack, code) {
+    var snap = computeMonthSnapshots();
+    var key = product + '|' + pack + '|' + code;
+    var lmRows = snap.lmSnapshot.filter(function (i) { return (i.product || '') + '|' + (i.pack || '') + '|' + (i.productionMonth || '') === key; });
+    var cmRows = snap.cmSnapshot.filter(function (i) { return (i.product || '') + '|' + (i.pack || '') + '|' + (i.productionMonth || '') === key; });
+    document.getElementById('drilldown-title').textContent = product + (pack ? ' ' + pack : '') + ' \u2014 Batch ' + (code || '\u2014') + ' \u2014 per warehouse';
+    var tbody = document.getElementById('tbody-drilldown');
+    var whSet = {};
+    lmRows.concat(cmRows).forEach(function (i) { whSet[i.warehouse || '\u2014'] = true; });
+    var whs = Object.keys(whSet);
+    if (whs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">No lot records found.</td></tr>';
+    } else {
+        tbody.innerHTML = whs.map(function (w) {
+            var lm = lmRows.filter(function (i) { return (i.warehouse || '\u2014') === w; }).reduce(function (s, i) { return s + i.qty; }, 0);
+            var cm = cmRows.filter(function (i) { return (i.warehouse || '\u2014') === w; }).reduce(function (s, i) { return s + i.qty; }, 0);
+            var expiry = (lmRows[0] ? lmRows[0].expiryMonth : '') || (cmRows[0] ? cmRows[0].expiryMonth : '') || '\u2014';
+            return '<tr><td>' + product + '</td><td>' + (pack || '\u2014') + '</td><td>' + (code || '\u2014') + '</td><td>' + expiry + '</td><td>' + cm.toLocaleString() + '</td><td>' + formatMonth(snap.lmMonth) + ': ' + lm.toLocaleString() + ' \u2192 ' + formatMonth(snap.cmMonth) + ': ' + cm.toLocaleString() + '</td><td>' + w + '</td></tr>';
+        }).join('');
     }
-    downloadCSV(csv, 'Monthly_Report_' + new Date().toISOString().slice(0, 10) + '.csv');
+    document.getElementById('drilldown-modal').classList.add('open');
 }
 
-function captureMonthlySnapshot() {
-    if (typeof syncManager === 'undefined' || !syncManager.saveSnapshot) {
-        alert('Sync manager not available');
-        return;
-    }
+function exportCohortFollowup() {
+    var c = buildCohort();
+    var quote = function (v) { return '"' + String(v === undefined || v === null ? '' : v).trim().replace(/"/g, '""') + '"'; };
+    var csv = 'SKU-Level Follow-up Cohort\n' + formatMonth(c.snap.lmMonth) + ' \u226412-month expiry risk vs ' + formatMonth(c.snap.cmMonth) + '\n';
+    csv += (c.snap.isFirstMonth ? 'First month on record - no prior-month cohort yet.\n' : '') + '\n';
+    csv += 'SKU / Product,Pack Size,Batch No.,Expiry Date,Last Month Risk Bucket,' + formatMonth(c.snap.lmMonth) + ' Qty,' + formatMonth(c.snap.cmMonth) + ' Qty,Net Change,Reduction %,Months Left,Current Status / Action\n';
+    c.rows.forEach(function (d) {
+        csv += [d.r.product, d.r.pack || '', d.r.code || '', d.r.expiry, AGE_BUCKET_LABELS[d.r.lmBucket], d.r.lmQty, d.cmQty, (d.net > 0 ? '+' : '') + d.net, d.r.lmQty > 0 ? d.redPct.toFixed(1) + '%' : '', d.ml === null ? '' : (d.ml < 0 ? 'EXPIRED' : d.ml + 'M'), d.statusText].map(quote).join(',') + '\n';
+    });
+    downloadCSV(csv, 'Cohort_Followup_' + new Date().toISOString().slice(0, 10) + '.csv');
+}
+
+function escQuote(s) {
+    return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+const COUNTRY_LEVEL_TO_BUCKET = { expired: 'expired', critical: 'crit', warning: 'warn', notice: 'notc', distant: 'dist', future: 'futr' };
+
+function renderCountrySummary() {
     var opData = loadOperatorData();
-    var inventory = opData.inventory || [];
-    if (inventory.length === 0) {
-        alert('No inventory data to snapshot');
+    var items = filterByWarehouse((opData.inventory || []).filter(function (i) { return i.quantity > 0; }));
+    var search = ((document.getElementById('country-search') || {}).value || '').trim().toLowerCase();
+    var codeData = {};
+    items.forEach(function (i) {
+        var k = (i.product || '') + '|' + (i.packSize || '');
+        codeData[k] = (codeData[k] || '') + ' ' + (i.productionMonth || '');
+    });
+    var agg = {};
+    items.forEach(function (i) {
+        var key = (i.product || '') + '|' + (i.packSize || '');
+        if (!agg[key]) agg[key] = { product: i.product, pack: i.packSize, agi: (i.product ? getAgiCode(i.product, i.packSize || '') : '') || '', buckets: { expired: 0, crit: 0, warn: 0, notc: 0, dist: 0, futr: 0 }, total: 0, warehouses: {}, nearest: '' };
+        var a = agg[key];
+        var ml = i.expiryMonth ? monthsUntilExpiry(i.expiryMonth) : null;
+        var lvl = (ml !== null && !isNaN(ml)) ? getExpiryLevel(ml) : null;
+        var b = COUNTRY_LEVEL_TO_BUCKET[lvl] || 'futr';
+        a.buckets[b] += (i.quantity || 0);
+        a.total += (i.quantity || 0);
+        if (i.warehouse) a.warehouses[i.warehouse] = true;
+        if (i.expiryMonth) {
+            var e = expiryMonthTs(i.expiryMonth);
+            var ne = a.nearest ? expiryMonthTs(a.nearest) : NaN;
+            if (isNaN(ne) || (!isNaN(e) && e < ne)) a.nearest = i.expiryMonth;
+        }
+    });
+    var rows = Object.values(agg).filter(function (a) {
+        if (!search) return true;
+        return (a.product + ' ' + a.pack + ' ' + a.agi).toLowerCase().indexOf(search) !== -1 ||
+            (codeData[a.product + '|' + a.pack] || '').toLowerCase().indexOf(search) !== -1;
+    });
+    rows.sort(function (a, b) {
+        if (b.total !== a.total) return b.total - a.total;
+        var ea = a.nearest ? expiryMonthTs(a.nearest) : NaN;
+        var eb = b.nearest ? expiryMonthTs(b.nearest) : NaN;
+        if (isNaN(ea)) return 1;
+        if (isNaN(eb)) return -1;
+        return ea - eb;
+    });
+    var body = document.getElementById('tbody-country');
+    if (rows.length === 0) {
+        body.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:32px;color:var(--text-muted);">' + (items.length === 0 ? 'No inventory recorded yet.' : 'No products match the search.') + '</td></tr>';
         return;
     }
-    var now = new Date();
-    var snapshotMonth = now.toISOString().slice(0, 7);
-    var warehouse = document.getElementById('settings-warehouse-select') ? document.getElementById('settings-warehouse-select').value : (opData.meta ? opData.meta.warehouse : '');
-    var rows = [];
+    body.innerHTML = rows.map(function (a) {
+        var names = Object.keys(a.warehouses);
+        var critColor = a.buckets.crit > 0 ? ' style="color:#DC2626;font-weight:600;"' : '';
+        return '<tr style="cursor:pointer;" onclick="showCountryDetail(\'' + escQuote(a.product) + '\',\'' + escQuote(a.pack || '') + '\')">' +
+            '<td>' + a.product + '</td><td>' + (a.pack || '\u2014') + '</td><td>' + (a.agi || '\u2014') + '</td>' +
+            '<td style="' + (a.buckets.expired > 0 ? 'color:#DC2626;font-weight:600;' : '') + '">' + a.buckets.expired.toLocaleString() + '</td>' +
+            '<td' + critColor + '>' + a.buckets.crit.toLocaleString() + '</td>' +
+            '<td>' + a.buckets.warn.toLocaleString() + '</td>' +
+            '<td>' + a.buckets.notc.toLocaleString() + '</td>' +
+            '<td>' + a.buckets.dist.toLocaleString() + '</td>' +
+            '<td>' + a.buckets.futr.toLocaleString() + '</td>' +
+            '<td><strong>' + a.total.toLocaleString() + '</strong></td>' +
+            '<td><span title="' + names.join(', ') + '">' + names.length + '</span></td>' +
+            '<td>' + (a.nearest || '\u2014') + '</td></tr>';
+    }).join('');
+}
+
+function showCountryDetail(product, pack) {
+    var opData = loadOperatorData();
+    var lots = filterByWarehouse((opData.inventory || []).filter(function (i) { return i.quantity > 0 && i.product === product && i.packSize === pack; }));
+    lots.sort(function (a, b) {
+        var ea = a.expiryMonth ? expiryMonthTs(a.expiryMonth) : Number.MAX_SAFE_INTEGER;
+        var eb = b.expiryMonth ? expiryMonthTs(b.expiryMonth) : Number.MAX_SAFE_INTEGER;
+        if (ea !== eb) return ea - eb;
+        return String(a.warehouse || '').localeCompare(String(b.warehouse || ''));
+    });
+    document.getElementById('drilldown-title').textContent = product + (pack ? ' ' + pack : '') + ' \u2014 stock lots';
+    var tbody = document.getElementById('tbody-drilldown');
+    if (lots.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">No stock lots for this SKU.</td></tr>';
+    } else {
+        tbody.innerHTML = lots.map(function (i) {
+            var ml = i.expiryMonth ? monthsUntilExpiry(i.expiryMonth) : null;
+            var lvl = (ml !== null && !isNaN(ml)) ? getExpiryLevel(ml) : null;
+            var badge = lvl ? '<span class="badge ' + ageBadgeClass(COUNTRY_LEVEL_TO_BUCKET[lvl] || 'futr') + '">' + (lvl === 'expired' ? 'EXPIRED' : ml + 'M') + '</span>' : '\u2014';
+            return '<tr><td>' + i.product + '</td><td>' + (i.packSize || '\u2014') + '</td><td>' + (i.productionMonth || '\u2014') + '</td><td>' + (i.expiryMonth || '\u2014') + '</td><td>' + (i.quantity || 0).toLocaleString() + '</td><td>' + badge + '</td><td>' + (i.warehouse || '\u2014') + '</td></tr>';
+        }).join('');
+    }
+    document.getElementById('drilldown-modal').classList.add('open');
+}
+
+function exportCountrySummary() {
+    var opData = loadOperatorData();
+    var items = filterByWarehouse((opData.inventory || []).filter(function (i) { return i.quantity > 0; }));
     var agg = {};
-    inventory.filter(i => i.quantity > 0).forEach(item => {
-        var key = (item.product || '') + '|' + item.packSize + '|' + (item.productionMonth || '');
-        if (!agg[key]) agg[key] = { product: item.product || '', packSize: item.packSize, productionMonth: item.productionMonth || '', quantity: 0 };
-        agg[key].quantity += (item.quantity || 0);
-    });
-    Object.values(agg).forEach(item => {
-        var ageMonths = 0;
-        if (item.productionMonth) {
-            var prodDate = new Date(item.productionMonth + '-01');
-            ageMonths = (now.getFullYear() - prodDate.getFullYear()) * 12 + (now.getMonth() - prodDate.getMonth());
+    items.forEach(function (i) {
+        var key = (i.product || '') + '|' + (i.packSize || '');
+        if (!agg[key]) agg[key] = { product: i.product, pack: i.packSize, agi: (i.product ? getAgiCode(i.product, i.packSize || '') : '') || '', buckets: { expired: 0, crit: 0, warn: 0, notc: 0, dist: 0, futr: 0 }, total: 0, warehouses: {}, nearest: '' };
+        var a = agg[key];
+        var ml = i.expiryMonth ? monthsUntilExpiry(i.expiryMonth) : null;
+        var lvl = (ml !== null && !isNaN(ml)) ? getExpiryLevel(ml) : null;
+        var b = COUNTRY_LEVEL_TO_BUCKET[lvl] || 'futr';
+        a.buckets[b] += (i.quantity || 0);
+        a.total += (i.quantity || 0);
+        if (i.warehouse) a.warehouses[i.warehouse] = true;
+        if (i.expiryMonth) {
+            var e = expiryMonthTs(i.expiryMonth);
+            var ne = a.nearest ? expiryMonthTs(a.nearest) : NaN;
+            if (isNaN(ne) || (!isNaN(e) && e < ne)) a.nearest = i.expiryMonth;
         }
-        var expiryMonth = '';
-        if (item.productionMonth) {
-            var prodParts = item.productionMonth.split('-');
-            var expYear = parseInt(prodParts[0]) + 2;
-            expiryMonth = expYear + '-' + prodParts[1];
-        }
-        rows.push({
-            snapshot_month: snapshotMonth,
-            product: item.product,
-            pack_size: item.packSize,
-            production_month: item.productionMonth,
-            expiry_month: expiryMonth,
-            warehouse: warehouse,
-            quantity: item.quantity,
-            age_months: ageMonths
-        });
     });
-    syncManager.saveSnapshot(rows).then(function () {
-        var msg = document.getElementById('monthly-snapshot-msg');
-        if (msg) {
-            msg.style.display = 'inline';
-            setTimeout(function () { msg.style.display = 'none'; }, 2000);
-        }
-        renderMonthlyReport();
+    var quote = function (v) { return '"' + String(v === undefined || v === null ? '' : v).trim().replace(/"/g, '""') + '"'; };
+    var csv = 'Country Summary\nGenerated: ' + new Date().toLocaleString() + '\n\n';
+    csv += 'Product,Pack,AGI Code,Expired,\u22643mo,4-6mo,7-12mo,13-18mo,Future,Total Qty,Warehouses,Nearest Expiry\n';
+    Object.values(agg).forEach(function (a) {
+        csv += [a.product, a.pack || '', a.agi || '', a.buckets.expired, a.buckets.crit, a.buckets.warn, a.buckets.notc, a.buckets.dist, a.buckets.futr, a.total, Object.keys(a.warehouses).join('; '), a.nearest || ''].map(quote).join(',') + '\n';
     });
+    downloadCSV(csv, 'Country_Summary_' + new Date().toISOString().slice(0, 10) + '.csv');
 }
 
 // ==============================
@@ -1938,6 +2191,7 @@ function renderAll() {
     renderInventory();
     renderActivityWarehouseChips();
     renderActivity('all');
+    renderCountrySummary();
     renderProducts();
     renderSettings();
     updateClock();
@@ -2020,6 +2274,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (document.getElementById('screen-12m').classList.contains('active')) render12M(currentFilter);
             if (document.getElementById('screen-inventory').classList.contains('active')) renderInventory();
             if (document.getElementById('screen-activity').classList.contains('active')) { renderActivityWarehouseChips(); renderActivity(currentActivityFilter); }
+            if (document.getElementById('screen-monthly').classList.contains('active')) renderMonthlyReport();
+            if (document.getElementById('screen-country').classList.contains('active')) renderCountrySummary();
             renderSyncStatus();
         });
     }
@@ -2034,6 +2290,8 @@ window.addEventListener('storage', function(e) {
         if (document.getElementById('screen-12m').classList.contains('active')) render12M(currentFilter);
         if (document.getElementById('screen-inventory').classList.contains('active')) renderInventory();
         if (document.getElementById('screen-activity').classList.contains('active')) { renderActivityWarehouseChips(); renderActivity(currentActivityFilter); }
+        if (document.getElementById('screen-monthly').classList.contains('active')) renderMonthlyReport();
+        if (document.getElementById('screen-country').classList.contains('active')) renderCountrySummary();
         renderSyncStatus();
     }
 });

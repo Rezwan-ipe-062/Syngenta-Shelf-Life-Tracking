@@ -48,6 +48,10 @@
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
                     <span>Dashboard</span>
                 </button>
+                <button class="sidebar-link" onclick="showScreen('screen-country', this)">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    <span>Country Summary</span>
+                </button>
                 <button class="sidebar-link" onclick="showScreen('screen-12m', this)">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                     <span>Shelf Life</span>
@@ -242,6 +246,27 @@
                 </div>
 
                 <!-- ==============================
+                     SCREEN: COUNTRY SUMMARY
+                     ============================== -->
+                <div id="screen-country" class="admin-screen">
+                    <div class="search-bar">
+                        <input class="search-input" type="text" placeholder="Search product / pack / code..." id="country-search" oninput="renderCountrySummary()">
+                        <button class="add-product-btn" onclick="exportCountrySummary()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Export CSV
+                        </button>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr><th>Product</th><th>Pack</th><th>AGI Code</th><th>Expired</th><th>≤3mo</th><th>4-6mo</th><th>7-12mo</th><th>13-18mo</th><th>Future</th><th>Total Qty</th><th>Warehouses</th><th>Nearest Expiry</th></tr>
+                            </thead>
+                            <tbody id="tbody-country"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ==============================
                      SCREEN: SHELF LIFE REPORT
                      ============================== -->
                 <div id="screen-12m" class="admin-screen">
@@ -253,6 +278,8 @@
                         <button class="filter-btn" onclick="filter12M('distant', this)" style="border-color:#2563EB;color:#2563EB;">Distant 13-18mo</button>
                         <button class="filter-btn" onclick="filter12M('expired', this)" style="border-color:#1F2937;color:#1F2937;">Expired</button>
                         <span class="filter-count" id="filter-count">Showing 18 items</span>
+                        <span class="filter-separator"></span>
+                        <input type="text" id="life-search" class="settings-input" placeholder="Search product / pack / code..." oninput="render12M(currentFilter)" style="width:200px;">
                         <button class="filter-btn export-btn" onclick="exportExcel()">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                             Download Excel
@@ -274,53 +301,33 @@
                 <div id="screen-monthly" class="admin-screen">
                     <div class="monthly-header">
                         <div class="monthly-header-left">
-                            <span class="monthly-current-month" id="monthly-current-month"></span>
-                            <button class="add-product-btn" onclick="captureMonthlySnapshot()">Capture Snapshot</button>
-                            <span id="monthly-snapshot-msg" style="font-size:12px;color:var(--green);display:none;margin-left:8px;">Saved</span>
+                            <span class="monthly-current-month" id="ageing-reference">Inventory Expiry Ageing Summary</span>
                         </div>
                         <div class="monthly-header-right">
-                            <select id="monthly-start" class="settings-input" onchange="renderMonthlyReport()"></select>
-                            <span style="color:var(--text-muted);">to</span>
-                            <select id="monthly-end" class="settings-input" onchange="renderMonthlyReport()"></select>
-                            <button class="filter-btn export-btn" onclick="exportMonthlyReport()">
+                            <button class="filter-btn export-btn" onclick="exportAgeingSummary()">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                                 Export CSV
                             </button>
                         </div>
                     </div>
 
-                    <div class="monthly-total-compare" id="monthly-total-compare">
+                    <div id="ageing-first-month-note" style="background:#FFFBEB;border:1px solid #FDE68A;border-left:4px solid #F59E0B;padding:10px 14px;border-radius:8px;font-size:13px;color:#92400E;margin-bottom:14px;display:none;"></div>
+                    <div id="ageing-excluded-note" style="font-size:12px;color:var(--text-muted);margin-bottom:12px;display:none;"></div>
+
+                    <div class="monthly-total-compare" id="ageing-compare">
                         <div class="month-compare-card lm-card">
-                            <div class="comparison-label">Last Month</div>
-                            <div class="comparison-value" id="monthly-lm-value">--</div>
-                            <div class="comparison-month" id="monthly-lm-month"></div>
+                            <div class="comparison-label" id="ageing-lm-label">Last Month</div>
+                            <div class="comparison-value" id="ageing-lm-value">--</div>
+                            <div class="comparison-month" id="ageing-lm-month"></div>
                         </div>
-                        <div class="comparison-delta" id="monthly-total-delta">
+                        <div class="comparison-delta" id="ageing-total-delta">
                             <div class="delta-label">Change</div>
-                            <div class="delta-value">--</div>
+                            <div class="delta-value" id="ageing-delta-value">--</div>
                         </div>
                         <div class="month-compare-card cm-card">
-                            <div class="comparison-label">This Month</div>
-                            <div class="comparison-value" id="monthly-cm-value">--</div>
-                            <div class="comparison-month" id="monthly-cm-month"></div>
-                        </div>
-                    </div>
-
-                    <div class="bucket-change-row">
-                        <div class="bucket-change-card">
-                            <div class="bucket-change-title">Expired Stock</div>
-                            <div class="bucket-change-values" id="bucket-values-expired">--</div>
-                            <div class="bucket-change-delta" id="bucket-delta-expired">--</div>
-                        </div>
-                        <div class="bucket-change-card">
-                            <div class="bucket-change-title">7-12 Months</div>
-                            <div class="bucket-change-values" id="bucket-values-medium">--</div>
-                            <div class="bucket-change-delta" id="bucket-delta-medium">--</div>
-                        </div>
-                        <div class="bucket-change-card">
-                            <div class="bucket-change-title">≤6 Months</div>
-                            <div class="bucket-change-values" id="bucket-values-short">--</div>
-                            <div class="bucket-change-delta" id="bucket-delta-short">--</div>
+                            <div class="comparison-label" id="ageing-cm-label">Current Month</div>
+                            <div class="comparison-value" id="ageing-cm-value">--</div>
+                            <div class="comparison-month" id="ageing-cm-month"></div>
                         </div>
                     </div>
 
@@ -328,16 +335,48 @@
                         <table class="admin-table">
                             <thead>
                                 <tr>
-                                    <th>Product</th>
-                                    <th>Pack</th>
-                                    <th>Bucket</th>
-                                    <th>LM Qty</th>
-                                    <th>CM Qty</th>
-                                    <th>Δ</th>
-                                    <th>Δ%</th>
+                                    <th>Category</th>
+                                    <th>Last Month Qty</th>
+                                    <th>Current Month Qty</th>
+                                    <th>Change</th>
                                 </tr>
                             </thead>
-                            <tbody id="tbody-sku-change"></tbody>
+                            <tbody id="tbody-ageing"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="monthly-header" style="margin-top:28px;">
+                        <div class="monthly-header-left">
+                            <span class="monthly-current-month" id="cohort-reference">SKU-Level Follow-up: Last Month's ≤12-Month Expiry-Risk Cohort</span>
+                        </div>
+                        <div class="monthly-header-right">
+                            <button class="filter-btn export-btn" onclick="exportCohortFollowup()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                Export CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bucket-change-row" id="cohort-kpis" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));"></div>
+
+                    <div class="table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>SKU / Product</th>
+                                    <th>Pack Size</th>
+                                    <th>Batch No.</th>
+                                    <th>Expiry Date</th>
+                                    <th>Last Month Risk Bucket</th>
+                                    <th>LM Qty</th>
+                                    <th>CM Qty</th>
+                                    <th>Net Change</th>
+                                    <th>Reduction %</th>
+                                    <th>Months Left</th>
+                                    <th>Current Status / Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-cohort"></tbody>
                         </table>
                     </div>
                 </div>
@@ -366,7 +405,7 @@
                     <div class="table-wrap">
                         <table class="admin-table">
                             <thead>
-                                <tr><th>Product</th><th>Pack</th><th>Prefix</th><th>Code</th><th>Prod Month</th><th>Months Left</th><th>Qty</th><th>Warehouse</th></tr>
+                                <tr><th>Product</th><th>Pack</th><th>Prefix</th><th>Code</th><th>Prod Month</th><th>Expiry</th><th>Months Left</th><th>Qty</th><th>Warehouse</th></tr>
                             </thead>
                             <tbody id="tbody-inventory"></tbody>
                         </table>
@@ -383,6 +422,7 @@
                         <button class="filter-btn" onclick="filterActivity('sub', this)" style="border-color:#DC2626;color:#DC2626;">Subtractions −</button>
                         <button class="filter-btn" onclick="filterActivity('adjust', this)" style="border-color:#333;color:#333;">Updates</button>
                         <span class="filter-separator"></span>
+                        <input type="text" id="activity-search" class="settings-input" placeholder="Search product / code / operator..." oninput="renderActivity(currentActivityFilter)" style="width:200px;">
                         <span class="filter-label">Warehouse:</span>
                         <span id="activity-wh-chips"></span>
                         <span class="filter-count" id="activity-count">Showing 16 entries</span>
