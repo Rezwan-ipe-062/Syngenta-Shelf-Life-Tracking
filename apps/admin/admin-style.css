@@ -950,6 +950,17 @@
     color: var(--text);
     font-size: 14px;
 }
+.admin-build-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    color: #00843D;
+    background: rgba(0, 132, 61, 0.12);
+    padding: 1px 7px;
+    border-radius: 4px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
 .monthly-header .settings-input {
     padding: 6px 10px;
     border: 1px solid var(--border);

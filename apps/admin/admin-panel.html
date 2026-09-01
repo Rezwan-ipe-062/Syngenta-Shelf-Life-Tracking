@@ -3,12 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Shelf Life Tracking — Admin v3</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
-    <link rel="stylesheet" href="admin-style.css">
+    <link rel="stylesheet" href="admin-style.css?v=4">
 </head>
 <body>
 
@@ -301,7 +303,7 @@
                 <div id="screen-monthly" class="admin-screen">
                     <div class="monthly-header">
                         <div class="monthly-header-left">
-                            <span class="monthly-current-month" id="ageing-reference">Inventory Expiry Ageing Summary</span>
+                            <span class="monthly-current-month" id="ageing-reference">Inventory Expiry Ageing Summary</span><span class="admin-build-tag">v4</span>
                         </div>
                         <div class="monthly-header-right">
                             <button class="filter-btn export-btn" onclick="exportAgeingSummary()">
@@ -675,6 +677,6 @@
     </div>
 
     <script src="../operator/sync.js"></script>
-    <script src="admin-app.js"></script>
+    <script src="admin-app.js?v=4"></script>
 </body>
 </html>

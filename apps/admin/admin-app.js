@@ -1532,7 +1532,7 @@ function renderAgeingSummary() {
             deltaHtml = '<span style="color:' + color + ';font-weight:600;">' + arrow + (diff > 0 ? '+' : '') + diff.toLocaleString() + (pct === null ? ' (new)' : ' (' + pctStr + ')') + '</span>';
         }
         return '<tr class="' + ageRowClass(b) + '"><td><span class="badge ' + ageBadgeClass(b) + '">' + AGE_BUCKET_LABELS[b] + '</span>' +
-            (b === 'futr' ? '' : ' <a href="javascript:void(0)" onclick="showAgeingDrilldown(\'' + b + '\')" style="font-size:12px;color:#16A34A;margin-left:6px;">view \u2192</a>') +
+            ' <a href="javascript:void(0)" onclick="showAgeingDrilldown(\'' + b + '\')" style="font-size:12px;color:#16A34A;margin-left:6px;">view \u2192</a>' +
             '</td><td>' + lmq.toLocaleString() + '</td><td>' + cmq.toLocaleString() + '</td><td>' + deltaHtml + '</td></tr>';
     }).join('');
 }
@@ -1633,12 +1633,10 @@ function buildCohort() {
         lmRisk: rows.reduce(function (s, r) { return s + r.r.lmQty; }, 0),
         cmRemain: rows.reduce(function (s, r) { return s + r.cmQty; }, 0),
         cleared: rows.filter(function (r) { return r.cleared; }).length,
-        increased: rows.filter(function (r) { return r.increased; }).length,
-        absent: rows.filter(function (r) { return r.absent; }).length
+        increased: rows.filter(function (r) { return r.increased; }).length
     };
     stats.reduction = stats.lmRisk - stats.cmRemain;
     stats.redPct = stats.lmRisk > 0 ? (stats.reduction / stats.lmRisk * 100) : null;
-    stats.nowRiskQty = cmItems.filter(function (i) { return i.expiryMonth && (ageBucketOf(i.expiryMonth, snap.cmEnd) === 'expired' || ageBucketOf(i.expiryMonth, snap.cmEnd) === 'crit'); }).reduce(function (s, i) { return s + i.qty; }, 0);
     return stats;
 }
 
@@ -1660,9 +1658,7 @@ function renderCohortFollowup() {
         cohortKpiChip(formatMonth(c.snap.cmMonth) + ' Remaining', c.cmRemain.toLocaleString()) +
         cohortKpiChip('Qty Reduction', c.reduction.toLocaleString(), redPctStr, c.reduction < 0 ? '#DC2626' : (c.reduction > 0 ? '#16A34A' : '')) +
         cohortKpiChip('Fully Cleared \u2713', c.cleared, 'green status', '#16A34A') +
-        cohortKpiChip('Increased Exposure \u25B2', c.increased, 'red status', c.increased > 0 ? '#DC2626' : '') +
-        cohortKpiChip('Now Expired / \u22643mo', c.nowRiskQty.toLocaleString(), 'current stock', c.nowRiskQty > 0 ? '#EA580C' : '') +
-        cohortKpiChip('Absent in CM', c.absent, 'verify', c.absent > 0 ? '#D97706' : '');
+        cohortKpiChip('Increased Exposure \u25B2', c.increased, 'red status', c.increased > 0 ? '#DC2626' : '');
 
     var tbody = document.getElementById('tbody-cohort');
     if (c.rows.length === 0) {
