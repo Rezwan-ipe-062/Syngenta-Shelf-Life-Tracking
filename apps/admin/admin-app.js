@@ -717,7 +717,7 @@ function renderCharts(inventory) {
 // 12M & 18M TABLE
 // ==============================
 let shelfLevels = new Set();
-let currentInvFilter = 'all';
+let currentInvLevels = new Set();
 
 function render12M() {
     const tbody = document.getElementById('tbody-12m');
@@ -765,7 +765,7 @@ function render12M() {
     }).join('');
 }
 
-function filter12M(level, btn) {
+function filter12M(level) {
     if (level === 'all') {
         shelfLevels.clear();
     } else if (shelfLevels.has(level)) {
@@ -773,21 +773,26 @@ function filter12M(level, btn) {
     } else {
         shelfLevels.add(level);
     }
-    document.querySelectorAll('#screen-12m .filter-btn').forEach(b => b.classList.remove('active'));
-    if (shelfLevels.size === 0) {
-        var allBtn = document.querySelector('#screen-12m .filter-bar .filter-btn');
-        if (allBtn) allBtn.classList.add('active');
-    } else if (btn) {
-        btn.classList.add('active');
-    }
+    document.querySelectorAll('#screen-12m .filter-btn[data-level]').forEach(b => {
+        var lv = b.getAttribute('data-level');
+        b.classList.toggle('active', lv === 'all' ? shelfLevels.size === 0 : shelfLevels.has(lv));
+    });
     render12M();
 }
 
-function filterInventory(filter, btn) {
-    currentInvFilter = filter;
-    document.querySelectorAll('#screen-inventory .filter-btn').forEach(b => b.classList.remove('active'));
-    if (btn) btn.classList.add('active');
-    renderInventory(filter);
+function filterInventory(level) {
+    if (level === 'all') {
+        currentInvLevels.clear();
+    } else if (currentInvLevels.has(level)) {
+        currentInvLevels.delete(level);
+    } else {
+        currentInvLevels.add(level);
+    }
+    document.querySelectorAll('#screen-inventory .filter-btn[data-level]').forEach(b => {
+        var lv = b.getAttribute('data-level');
+        b.classList.toggle('active', lv === 'all' ? currentInvLevels.size === 0 : currentInvLevels.has(lv));
+    });
+    renderInventory();
 }
 
 // ==============================
@@ -992,8 +997,7 @@ function saveEditTransaction() {
 // ==============================
 // INVENTORY TABLE
 // ==============================
-function renderInventory(filter) {
-    const effFilter = filter || currentInvFilter;
+function renderInventory() {
     const search = document.getElementById('inv-search').value.toLowerCase();
     const tbody = document.getElementById('tbody-inventory');
     const countEl = document.getElementById('inv-filter-count');
@@ -1018,8 +1022,8 @@ function renderInventory(filter) {
         data = data.filter(d => d.product.toLowerCase().includes(search) || d.code.toLowerCase().includes(search));
     }
 
-    if (effFilter !== 'all') {
-        data = data.filter(d => d.level === effFilter);
+    if (currentInvLevels.size > 0) {
+        data = data.filter(d => d.level && currentInvLevels.has(d.level));
     }
 
     if (countEl) countEl.textContent = 'Showing ' + data.length + ' items';
@@ -1052,7 +1056,7 @@ function renderInventory(filter) {
 
     if (data.length === 0) {
         tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted);">' +
-            (search ? 'No results found' : (effFilter !== 'all' ? 'No items match this filter.' : 'No inventory data yet. Start counting from the operator app.')) +
+            (search ? 'No results found' : (currentInvLevels.size > 0 ? 'No items match these filters.' : 'No inventory data yet. Start counting from the operator app.')) +
             '</td></tr>';
         return;
     }

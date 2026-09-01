@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
-    <link rel="stylesheet" href="admin-style.css?v=4">
+    <link rel="stylesheet" href="admin-style.css?v=5">
 </head>
 <body>
 
@@ -273,12 +273,12 @@
                      ============================== -->
                 <div id="screen-12m" class="admin-screen">
                     <div class="filter-bar">
-                        <button class="filter-btn active" onclick="filter12M('all', this)">All</button>
-                        <button class="filter-btn" onclick="filter12M('critical', this)" style="border-color:#DC2626;color:#DC2626;">Critical ≤3mo</button>
-                        <button class="filter-btn" onclick="filter12M('warning', this)" style="border-color:#F97316;color:#F97316;">Warning 4-6mo</button>
-                        <button class="filter-btn" onclick="filter12M('notice', this)" style="border-color:#d97706;color:#d97706;">Notice 7-12mo</button>
-                        <button class="filter-btn" onclick="filter12M('distant', this)" style="border-color:#2563EB;color:#2563EB;">Distant 13-18mo</button>
-                        <button class="filter-btn" onclick="filter12M('expired', this)" style="border-color:#1F2937;color:#1F2937;">Expired</button>
+                        <button class="filter-btn active" data-level="all" onclick="filter12M('all', this)">All</button>
+                        <button class="filter-btn" data-level="critical" onclick="filter12M('critical', this)" style="border-color:#DC2626;color:#DC2626;">Critical ≤3mo</button>
+                        <button class="filter-btn" data-level="warning" onclick="filter12M('warning', this)" style="border-color:#F97316;color:#F97316;">Warning 4-6mo</button>
+                        <button class="filter-btn" data-level="notice" onclick="filter12M('notice', this)" style="border-color:#d97706;color:#d97706;">Notice 7-12mo</button>
+                        <button class="filter-btn" data-level="distant" onclick="filter12M('distant', this)" style="border-color:#2563EB;color:#2563EB;">Distant 13-18mo</button>
+                        <button class="filter-btn" data-level="expired" onclick="filter12M('expired', this)" style="border-color:#1F2937;color:#1F2937;">Expired</button>
                         <span class="filter-count" id="filter-count">Showing 18 items</span>
                         <span class="filter-separator"></span>
                         <input type="text" id="life-search" class="settings-input" placeholder="Search product / pack / code..." oninput="render12M()" style="width:200px;">
@@ -303,7 +303,7 @@
                 <div id="screen-monthly" class="admin-screen">
                     <div class="monthly-header">
                         <div class="monthly-header-left">
-                            <span class="monthly-current-month" id="ageing-reference">Inventory Expiry Ageing Summary</span><span class="admin-build-tag">v4</span>
+                            <span class="monthly-current-month" id="ageing-reference">Inventory Expiry Ageing Summary</span><span class="admin-build-tag">v5</span>
                         </div>
                         <div class="monthly-header-right">
                             <button class="filter-btn export-btn" onclick="exportAgeingSummary()">
@@ -400,12 +400,12 @@
                         <button class="add-product-btn" onclick="showScreen('screen-products', document.querySelector('.sidebar-link[onclick*=\"screen-products\"]'))">Manage Products</button>
                     </div>
                     <div class="filter-bar">
-                        <button class="filter-btn active" onclick="filterInventory('all', this)">All</button>
-                        <button class="filter-btn" onclick="filterInventory('critical', this)" style="border-color:#DC2626;color:#DC2626;">Critical ≤3mo</button>
-                        <button class="filter-btn" onclick="filterInventory('warning', this)" style="border-color:#F97316;color:#F97316;">Warning 4-6mo</button>
-                        <button class="filter-btn" onclick="filterInventory('notice', this)" style="border-color:#d97706;color:#d97706;">Notice 7-12mo</button>
-                        <button class="filter-btn" onclick="filterInventory('distant', this)" style="border-color:#2563EB;color:#2563EB;">Distant 13-18mo</button>
-                        <button class="filter-btn" onclick="filterInventory('expired', this)" style="border-color:#1F2937;color:#1F2937;">Expired</button>
+                        <button class="filter-btn active" data-level="all" onclick="filterInventory('all', this)">All</button>
+                        <button class="filter-btn" data-level="critical" onclick="filterInventory('critical', this)" style="border-color:#DC2626;color:#DC2626;">Critical ≤3mo</button>
+                        <button class="filter-btn" data-level="warning" onclick="filterInventory('warning', this)" style="border-color:#F97316;color:#F97316;">Warning 4-6mo</button>
+                        <button class="filter-btn" data-level="notice" onclick="filterInventory('notice', this)" style="border-color:#d97706;color:#d97706;">Notice 7-12mo</button>
+                        <button class="filter-btn" data-level="distant" onclick="filterInventory('distant', this)" style="border-color:#2563EB;color:#2563EB;">Distant 13-18mo</button>
+                        <button class="filter-btn" data-level="expired" onclick="filterInventory('expired', this)" style="border-color:#1F2937;color:#1F2937;">Expired</button>
                         <span class="filter-count" id="inv-filter-count">Showing 0 items</span>
                     </div>
                     <div class="table-wrap">
@@ -677,6 +677,6 @@
     </div>
 
     <script src="../operator/sync.js"></script>
-    <script src="admin-app.js?v=4"></script>
+    <script src="admin-app.js?v=5"></script>
 </body>
 </html>
