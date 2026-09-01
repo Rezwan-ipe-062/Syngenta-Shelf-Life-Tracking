@@ -1285,7 +1285,13 @@ function monthStartOf(ym) {
 // app's merge: key = product|pack|productionMonth|warehouse.
 function rebuildInventoryAt(cutoffTs) {
     var opData = loadOperatorData();
-    var txs = (opData.transactions || []).filter(function (t) { return parseEntryDate(t) <= cutoffTs; });
+    var allTxs = (opData.transactions || []);
+    // Undated transactions parse to 0 and would land in every snapshot, making
+    // last-month equal current-month. Assign them to the latest dated month so
+    // they only appear from that month's cutoff onward.
+    var latestEnd = 0;
+    allTxs.forEach(function (t) { var ts = parseEntryDate(t); if (ts > 0) { var m = monthEndOf(monthOf(ts)); if (m > latestEnd) latestEnd = m; } });
+    var txs = allTxs.filter(function (t) { var ts = parseEntryDate(t); return ts === 0 ? cutoffTs >= latestEnd : ts <= cutoffTs; });
     txs.sort(function (a, b) { return parseEntryDate(a) - parseEntryDate(b); });
     var inv = {};
     txs.forEach(function (t) {
@@ -1446,8 +1452,6 @@ function renderAgeingSummary() {
             var dl0 = deltaEl0.querySelector('.delta-label');
             if (dl0) dl0.textContent = 'Change';
         }
-        var fn = document.getElementById('ageing-first-month-note');
-        if (fn) fn.style.display = 'none';
         var en = document.getElementById('ageing-excluded-note');
         if (en) en.style.display = 'none';
         var tb = document.getElementById('tbody-ageing');
@@ -1471,7 +1475,7 @@ function renderAgeingSummary() {
     var cmTotal = cmItems.reduce(function (s, i) { return s + i.qty; }, 0);
 
     setText('ageing-reference', 'Inventory Expiry Ageing Summary \u2014 ' + formatMonth(snap.lmMonth) + ' vs ' + formatMonth(snap.cmMonth));
-    setText('ageing-lm-label', snap.isFirstMonth ? 'Last Month (baseline)' : 'Last Month');
+    setText('ageing-lm-label', (snap.isFirstMonth || lmTotal === 0) ? 'Last Month (baseline)' : 'Last Month');
     setText('ageing-lm-value', lmTotal.toLocaleString());
     setText('ageing-lm-month', formatMonth(snap.lmMonth) + (snap.lmHasRecords ? '' : ' \u00b7 no records'));
     setText('ageing-cm-label', 'Current Month');
@@ -1483,7 +1487,7 @@ function renderAgeingSummary() {
         var dv = document.getElementById('ageing-delta-value');
         var dl = deltaEl.querySelector('.delta-label');
         var diff = cmTotal - lmTotal;
-        if (snap.isFirstMonth) {
+        if (snap.isFirstMonth || (lmTotal === 0 && cmTotal > 0)) {
             if (dv) { dv.textContent = '+' + cmTotal.toLocaleString() + ' (new)'; dv.style.color = '#DC2626'; }
             if (dl) dl.textContent = 'Change';
         } else {
@@ -1497,21 +1501,15 @@ function renderAgeingSummary() {
         }
     }
 
-    var firstNote = document.getElementById('ageing-first-month-note');
-    if (firstNote) {
-        if (snap.isFirstMonth) {
-            firstNote.style.display = 'block';
-            firstNote.textContent = 'First month on record: no inventory was recorded in ' + formatMonth(snap.lmMonth) + ', so the Last Month baseline is 0. Every category below shows the full current-month quantity as an increase; comparison and cohort follow-up fully activate from next month.';
-        } else {
-            firstNote.style.display = 'none';
-        }
-    }
     var excludedNote = document.getElementById('ageing-excluded-note');
     if (excludedNote) {
         var ex = lmExcluded + cmExcluded;
-        if (ex > 0) {
+        var noteParts = [];
+        if (ex > 0) noteParts.push(ex.toLocaleString() + ' carton' + (ex === 1 ? '' : 's') + ' across the two snapshots have no expiry date and are excluded from bucketing (still counted in the totals)');
+        if (snap.skipped > 0) noteParts.push(snap.skipped + ' entr' + (snap.skipped === 1 ? 'y has' : 'ies have') + ' no usable date and are counted in the current-month totals only');
+        if (noteParts.length > 0) {
             excludedNote.style.display = 'block';
-            excludedNote.textContent = ex.toLocaleString() + ' carton' + (ex === 1 ? '' : 's') + ' across the two snapshots have no expiry date recorded and are excluded from the bucketing above (still counted in the totals).';
+            excludedNote.textContent = noteParts.join('. ') + '.';
         } else {
             excludedNote.style.display = 'none';
         }
@@ -1566,8 +1564,7 @@ function exportAgeingSummary() {
     var lmTotal = lmItems.reduce(function (s, i) { return s + i.qty; }, 0);
     var cmTotal = cmItems.reduce(function (s, i) { return s + i.qty; }, 0);
     var quote = function (v) { return '"' + String(v === undefined || v === null ? '' : v).trim().replace(/"/g, '""') + '"'; };
-    var csv = 'Inventory Expiry Ageing Summary\nReference: ' + formatMonth(snap.lmMonth) + ' vs ' + formatMonth(snap.cmMonth) + '\n';
-    csv += (snap.isFirstMonth ? 'First month on record - last month baseline is 0.\n' : '') + '\n';
+    var csv = 'Inventory Expiry Ageing Summary\nReference: ' + formatMonth(snap.lmMonth) + ' vs ' + formatMonth(snap.cmMonth) + '\n\n';
     csv += 'Category,Last Month Qty,Current Month Qty,Change\n';
     AGE_BUCKET_ORDER.forEach(function (b) {
         var lmq = lm[b] || 0, cmq = cm[b] || 0;
@@ -1669,23 +1666,21 @@ function renderCohortFollowup() {
 
     var tbody = document.getElementById('tbody-cohort');
     if (c.rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text-muted);">' +
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">' +
             (c.snap.isFirstMonth ? 'No prior-month \u226412-month cohort yet. Baseline builds from the first full month of operation.' : 'No last-month items fell inside the \u226412-month expiry window.') +
             '</td></tr>';
         return;
     }
     tbody.innerHTML = c.rows.map(function (d) {
-        var monthsLeftStr = d.ml === null ? '\u2014' : (d.ml < 0 ? '<span style="color:#DC2626;font-weight:600;">EXPIRED</span>' : d.ml + 'M');
         var statusColor = d.statusCls === 'movement-up' ? '#DC2626' : (d.statusCls === 'movement-down' ? '#16A34A' : '');
         var netHtml = '<span class="' + (d.net > 0 ? 'movement-up' : (d.net < 0 ? 'movement-down' : '')) + '">' + (d.net > 0 ? '+' : '') + d.net.toLocaleString() + '</span>';
         var statusHtml = '<span style="' + (statusColor ? 'color:' + statusColor + ';' : '') + 'font-weight:600;">' + d.statusText + '</span>';
         if (d.absent) statusHtml += '<br><span style="background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;padding:1px 6px;border-radius:4px;font-size:11px;display:inline-block;margin-top:3px;">Absent in CM \u2014 verify</span>';
         return '<tr class="' + ageRowClass(d.cmBucket) + '" style="cursor:pointer;" onclick="showCohortDetail(\'' + escQuote(d.r.product) + '\',\'' + escQuote(d.r.pack || '') + '\',\'' + escQuote(d.r.code || '') + '\')">' +
-            '<td>' + d.r.product + '</td><td>' + (d.r.pack || '\u2014') + '</td><td>' + (d.r.code || '\u2014') + '</td>' +
+            '<td>' + d.r.product + '</td><td>' + (d.r.pack || '\u2014') + '</td>' +
             '<td style="' + (d.cmBucket === 'expired' ? 'color:#DC2626;font-weight:600;' : (d.cmBucket === 'crit' ? 'color:#EA580C;font-weight:600;' : '')) + '">' + d.r.expiry + '</td>' +
-            '<td><span class="badge ' + ageBadgeClass(d.r.lmBucket) + '">' + AGE_BUCKET_LABELS[d.r.lmBucket] + '</span></td>' +
             '<td>' + d.r.lmQty.toLocaleString() + '</td><td>' + d.cmQty.toLocaleString() + '</td><td>' + netHtml + '</td>' +
-            '<td>' + (d.r.lmQty > 0 ? d.redPct.toFixed(1) + '%' : '\u2014') + '</td><td>' + monthsLeftStr + '</td><td>' + statusHtml + '</td></tr>';
+            '<td>' + (d.r.lmQty > 0 ? d.redPct.toFixed(1) + '%' : '\u2014') + '</td><td>' + statusHtml + '</td></tr>';
     }).join('');
 }
 
@@ -1717,9 +1712,9 @@ function exportCohortFollowup() {
     var quote = function (v) { return '"' + String(v === undefined || v === null ? '' : v).trim().replace(/"/g, '""') + '"'; };
     var csv = 'SKU-Level Follow-up Cohort\n' + formatMonth(c.snap.lmMonth) + ' \u226412-month expiry risk vs ' + formatMonth(c.snap.cmMonth) + '\n';
     csv += (c.snap.isFirstMonth ? 'First month on record - no prior-month cohort yet.\n' : '') + '\n';
-    csv += 'SKU / Product,Pack Size,Batch No.,Expiry Date,Last Month Risk Bucket,' + formatMonth(c.snap.lmMonth) + ' Qty,' + formatMonth(c.snap.cmMonth) + ' Qty,Net Change,Reduction %,Months Left,Current Status / Action\n';
+    csv += 'SKU / Product,Pack Size,Expiry Date,' + formatMonth(c.snap.lmMonth) + ' Qty,' + formatMonth(c.snap.cmMonth) + ' Qty,Net Change,Reduction %,Current Status / Action\n';
     c.rows.forEach(function (d) {
-        csv += [d.r.product, d.r.pack || '', d.r.code || '', d.r.expiry, AGE_BUCKET_LABELS[d.r.lmBucket], d.r.lmQty, d.cmQty, (d.net > 0 ? '+' : '') + d.net, d.r.lmQty > 0 ? d.redPct.toFixed(1) + '%' : '', d.ml === null ? '' : (d.ml < 0 ? 'EXPIRED' : d.ml + 'M'), d.statusText].map(quote).join(',') + '\n';
+        csv += [d.r.product, d.r.pack || '', d.r.expiry, d.r.lmQty, d.cmQty, (d.net > 0 ? '+' : '') + d.net, d.r.lmQty > 0 ? d.redPct.toFixed(1) + '%' : '', d.statusText].map(quote).join(',') + '\n';
     });
     downloadCSV(csv, 'Cohort_Followup_' + new Date().toISOString().slice(0, 10) + '.csv');
 }

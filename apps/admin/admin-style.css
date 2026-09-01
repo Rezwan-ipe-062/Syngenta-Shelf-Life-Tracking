@@ -986,13 +986,18 @@
     background: #FFFBEB;
 }
 
+.monthly-table { width: 100%; }
+.monthly-table thead th { padding: 10px 12px; }
+.monthly-table tbody td { padding: 9px 12px; font-size: 12px; white-space: normal; }
+#screen-monthly .table-wrap { overflow-x: hidden; }
+
 /* MONTHLY REPORT TOTAL COMPARE */
 .monthly-total-compare {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 24px;
     margin-bottom: 20px;
-    padding: 24px;
+    padding: 28px;
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 12px;
@@ -1000,48 +1005,52 @@
 .month-compare-card {
     flex: 1;
     text-align: center;
-    padding: 20px;
+    padding: 28px 16px;
+    min-height: 170px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     border-radius: 10px;
 }
 .lm-card { background: #eef2ff; }
 .cm-card { background: #f0fdf4; }
 .comparison-label {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
-    color: var(--text-muted);
+    color: #5A6672;
     text-transform: uppercase;
     letter-spacing: 0.8px;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
 }
 .comparison-value {
-    font-size: 32px;
+    font-size: 44px;
     font-weight: 800;
     color: var(--text);
     line-height: 1.1;
 }
 .comparison-month {
-    font-size: 11px;
-    color: var(--text-muted);
-    margin-top: 4px;
+    font-size: 13px;
+    color: #5A6672;
+    margin-top: 6px;
 }
 .comparison-delta {
     text-align: center;
-    padding: 12px 20px;
+    padding: 16px 22px;
     border-radius: 10px;
     background: var(--bg);
     border: 1px solid var(--border);
-    min-width: 110px;
+    min-width: 170px;
 }
 .delta-label {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
-    color: var(--text-muted);
+    color: #5A6672;
     text-transform: uppercase;
     letter-spacing: 0.8px;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
 }
 .delta-value {
-    font-size: 18px;
+    font-size: 24px;
     font-weight: 700;
 }
 
@@ -1117,4 +1126,10 @@
 @media (prefers-color-scheme: dark) {
     .lm-card { background: #1e293b; }
     .cm-card { background: #0f2d1a; }
+    .comparison-label { color: #A6B4C0; }
+    .comparison-value { color: #F3F6F4; }
+    .comparison-month { color: #A6B4C0; }
+    .delta-label { color: #A6B4C0; }
+    .delta-value { color: #F3F6F4; }
+    .comparison-delta { background: #111C2F; border-color: #1e293b; }
 }
