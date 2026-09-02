@@ -1631,6 +1631,18 @@ function buildCohort() {
         cohort[key].lmQty += i.qty;
         if (expiryMonthTs(i.expiryMonth) < expiryMonthTs(cohort[key].expiry)) cohort[key].expiry = i.expiryMonth;
     });
+    if (Object.keys(cohort).length === 0 && snap.isFirstMonth) {
+        cmItems.forEach(function (i) {
+            if (!i.expiryMonth) return;
+            var b = ageBucketOf(i.expiryMonth, snap.cmEnd);
+            if (b === null || b === 'dist' || b === 'futr') return;
+            var key = (i.product || '') + '|' + (i.pack || '') + '|' + (i.productionMonth || '');
+            var row = cohort[key];
+            if (!row) cohort[key] = { product: i.product, pack: i.pack, code: i.productionMonth || '', expiry: i.expiryMonth, lmQty: 0, lmBucket: b };
+            cohort[key].lmQty += 0;
+            if (expiryMonthTs(i.expiryMonth) < expiryMonthTs(cohort[key].expiry)) cohort[key].expiry = i.expiryMonth;
+        });
+    }
     var cmQtyByKey = {}, cmTouchedByKey = {};
     cmItems.forEach(function (i) {
         var key = (i.product || '') + '|' + (i.pack || '') + '|' + (i.productionMonth || '');
