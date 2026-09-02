@@ -1038,13 +1038,20 @@ function renderInventory() {
 
     const groups = {};
     data.forEach(d => {
-        const key = d.product + '|' + d.pack + '|' + d.warehouse;
+        const key = d.product + '|' + d.pack;
         if (!groups[key]) groups[key] = [];
         groups[key].push(d);
     });
 
+    const whGroups = {};
+    data.forEach(d => {
+        const key = d.product + '|' + d.pack + '|' + d.warehouse;
+        if (!whGroups[key]) whGroups[key] = [];
+        whGroups[key].push(d);
+    });
+
     const highlighted = new Set();
-    Object.values(groups).forEach(group => {
+    Object.values(whGroups).forEach(group => {
         let runningMin = group[group.length - 1].qty
         for (let i = group.length - 2; i >= 0; i--) {
             if (group[i].qty > runningMin) {
