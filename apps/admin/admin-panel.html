@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
-    <link rel="stylesheet" href="admin-style.css?v=8">
+    <link rel="stylesheet" href="admin-style.css?v=9">
 </head>
 <body>
 
@@ -303,7 +303,7 @@
                 <div id="screen-monthly" class="admin-screen">
                     <div class="monthly-header">
                         <div class="monthly-header-left">
-                            <span class="monthly-current-month" id="ageing-reference">Inventory Expiry Ageing Summary</span><span class="admin-build-tag">v8</span>
+                            <span class="monthly-current-month" id="ageing-reference">Inventory Expiry Ageing Summary</span><span class="admin-build-tag">v9</span>
                         </div>
                         <div class="monthly-header-right">
                             <button class="filter-btn export-btn" onclick="exportAgeingSummary()">
@@ -323,22 +323,9 @@
 
                     <div id="ageing-excluded-note" style="font-size:12px;color:var(--text-muted);margin-bottom:12px;display:none;"></div>
 
-                    <div class="monthly-total-compare" id="ageing-compare">
-                        <div class="month-compare-card lm-card">
-                            <div class="comparison-label" id="ageing-lm-label">Last Month</div>
-                            <div class="comparison-value" id="ageing-lm-value">--</div>
-                            <div class="comparison-month" id="ageing-lm-month"></div>
-                        </div>
-                        <div class="comparison-delta" id="ageing-total-delta">
-                            <div class="delta-label">Change</div>
-                            <div class="delta-value" id="ageing-delta-value">--</div>
-                        </div>
-                        <div class="month-compare-card cm-card">
-                            <div class="comparison-label" id="ageing-cm-label">Current Month</div>
-                            <div class="comparison-value" id="ageing-cm-value">--</div>
-                            <div class="comparison-month" id="ageing-cm-month"></div>
-                        </div>
-                    </div>
+                    <div class="ageing-strip" id="ageing-summary-strip" style="display:none;"></div>
+
+                    <div class="ageing-cards" id="ageing-cards"></div>
 
                     <div class="table-wrap">
                         <table class="admin-table monthly-table">
@@ -347,7 +334,7 @@
                                     <th>Category</th>
                                     <th>Last Month Qty</th>
                                     <th>Current Month Qty</th>
-                                    <th>Change</th>
+                                    <th>% of Current Month</th>
                                 </tr>
                             </thead>
                             <tbody id="tbody-ageing"></tbody>
@@ -677,6 +664,6 @@
     </div>
 
     <script src="../operator/sync.js"></script>
-    <script src="admin-app.js?v=8"></script>
+    <script src="admin-app.js?v=9"></script>
 </body>
 </html>

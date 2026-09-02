@@ -349,17 +349,37 @@ function loadOperatorData() {
 // ==============================
 // EXPIRY COMPUTATION
 // ==============================
+function parseExpiryDate(expiry) {
+    if (expiry === undefined || expiry === null || expiry === '') return NaN;
+    var v = String(expiry).trim();
+    if (v.indexOf(' ') > -1) {
+        var parts = v.split(' ');
+        var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var mi = monthNames.indexOf(parts[0]);
+        var y = parseInt(parts[1], 10);
+        if (mi >= 0 && !isNaN(y)) {
+            var d = new Date(y, mi, 1);
+            return isNaN(d.getTime()) ? NaN : d.getTime();
+        }
+        return NaN;
+    }
+    if (v.indexOf('T') > -1) {
+        var d2 = new Date(v);
+        return isNaN(d2.getTime()) ? NaN : d2.getTime();
+    }
+    var n = parseFloat(v);
+    if (!isNaN(n) && n >= 1 && n <= 100000) {
+        // Excel serial date (epoch 1899-12-30) — cloud stores expiry_month this way
+        return (new Date(Math.round(n * 86400000) - 2209161600000)).getTime();
+    }
+    return NaN;
+}
+
 function monthsUntilExpiry(expiryStr) {
     var now = new Date();
-    var expiry;
-    if (typeof expiryStr === 'string' && expiryStr.indexOf(' ') > -1) {
-        var parts = expiryStr.split(' ');
-        var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        expiry = new Date(parseInt(parts[1]), monthNames.indexOf(parts[0]), 1);
-    } else {
-        expiry = new Date(expiryStr);
-    }
-    if (isNaN(expiry.getTime())) return NaN;
+    var t = parseExpiryDate(expiryStr);
+    if (isNaN(t)) return NaN;
+    var expiry = new Date(t);
     return (expiry.getFullYear() - now.getFullYear()) * 12 + (expiry.getMonth() - now.getMonth());
 }
 
@@ -1314,15 +1334,13 @@ function monthStartOf(ym) {
 
 // Rebuild inventory at a cutoff from the ledger, mirroring the operator
 // app's merge: key = product|pack|productionMonth|warehouse.
-function rebuildInventoryAt(cutoffTs) {
+// Undated transactions (ts === 0) are anchored to the current-month cutoff
+// (anchorEnd) only — they never appear in historical snapshots, so a first
+// month of input shows last month as 0.
+function rebuildInventoryAt(cutoffTs, anchorEnd) {
     var opData = loadOperatorData();
     var allTxs = (opData.transactions || []);
-    // Undated transactions parse to 0 and would land in every snapshot, making
-    // last-month equal current-month. Assign them to the latest dated month so
-    // they only appear from that month's cutoff onward.
-    var latestEnd = 0;
-    allTxs.forEach(function (t) { var ts = parseEntryDate(t); if (ts > 0) { var m = monthEndOf(monthOf(ts)); if (m > latestEnd) latestEnd = m; } });
-    var txs = allTxs.filter(function (t) { var ts = parseEntryDate(t); return ts === 0 ? cutoffTs >= latestEnd : ts <= cutoffTs; });
+    var txs = allTxs.filter(function (t) { var ts = parseEntryDate(t); return ts === 0 ? cutoffTs >= anchorEnd : ts <= cutoffTs; });
     txs.sort(function (a, b) { return parseEntryDate(a) - parseEntryDate(b); });
     var inv = {};
     txs.forEach(function (t) {
@@ -1380,19 +1398,17 @@ function computeMonthSnapshots() {
     return {
         lmMonth: lmMonth, cmMonth: cmMonth, lmEnd: lmEnd, cmEnd: cmEnd,
         lmStart: monthStartOf(lmMonth), cmStart: monthStartOf(cmMonth),
-        lmSnapshot: rebuildInventoryAt(lmEnd), cmSnapshot: rebuildInventoryAt(cmEnd),
+        lmSnapshot: rebuildInventoryAt(lmEnd, cmEnd), cmSnapshot: rebuildInventoryAt(cmEnd, cmEnd),
         skipped: skipped, isFirstMonth: isFirstMonth, lmHasRecords: lmHasRecords, hasData: true
     };
 }
 
 function expiryMonthTs(expiryStr) {
-    var m = String(expiryStr || '').trim().split(' ');
-    if (m.length !== 2) return NaN;
-    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    var mi = months.indexOf(m[0]);
-    var y = parseInt(m[1], 10);
-    if (mi < 0 || isNaN(y)) return NaN;
-    var d = new Date(y, mi, 1); d.setMonth(d.getMonth() + 1, 0); d.setHours(23, 59, 59, 999);
+    var t = parseExpiryDate(expiryStr);
+    if (isNaN(t)) return NaN;
+    var d = new Date(t);
+    d.setMonth(d.getMonth() + 1, 0);
+    d.setHours(23, 59, 59, 999);
     return d.getTime();
 }
 
@@ -1470,19 +1486,10 @@ function renderAgeingSummary() {
     var snap = computeMonthSnapshots();
     if (!snap.hasData) {
         setText('ageing-reference', 'Inventory Expiry Ageing Summary \u2014 no data yet');
-        setText('ageing-lm-label', 'Last Month');
-        setText('ageing-lm-value', '--');
-        setText('ageing-lm-month', '');
-        setText('ageing-cm-label', 'Current Month');
-        setText('ageing-cm-value', '--');
-        setText('ageing-cm-month', '');
-        var deltaEl0 = document.getElementById('ageing-total-delta');
-        if (deltaEl0) {
-            var dv0 = document.getElementById('ageing-delta-value');
-            if (dv0) { dv0.textContent = '--'; dv0.style.color = ''; }
-            var dl0 = deltaEl0.querySelector('.delta-label');
-            if (dl0) dl0.textContent = 'Change';
-        }
+        var strip0 = document.getElementById('ageing-summary-strip');
+        if (strip0) strip0.style.display = 'none';
+        var cards0 = document.getElementById('ageing-cards');
+        if (cards0) cards0.innerHTML = '';
         var en = document.getElementById('ageing-excluded-note');
         if (en) en.style.display = 'none';
         var tb = document.getElementById('tbody-ageing');
@@ -1504,32 +1511,30 @@ function renderAgeingSummary() {
     });
     var lmTotal = lmItems.reduce(function (s, i) { return s + i.qty; }, 0);
     var cmTotal = cmItems.reduce(function (s, i) { return s + i.qty; }, 0);
+    var atRisk = ['expired', 'crit', 'warn', 'notc'].reduce(function (s, b) { return s + (cm[b] || 0); }, 0);
 
     setText('ageing-reference', 'Inventory Expiry Ageing Summary \u2014 ' + formatMonth(snap.lmMonth) + ' vs ' + formatMonth(snap.cmMonth));
-    setText('ageing-lm-label', (snap.isFirstMonth || lmTotal === 0) ? 'Last Month (baseline)' : 'Last Month');
-    setText('ageing-lm-value', lmTotal.toLocaleString());
-    setText('ageing-lm-month', formatMonth(snap.lmMonth) + (snap.lmHasRecords ? '' : ' \u00b7 no records'));
-    setText('ageing-cm-label', 'Current Month');
-    setText('ageing-cm-value', cmTotal.toLocaleString());
-    setText('ageing-cm-month', formatMonth(snap.cmMonth));
 
-    var deltaEl = document.getElementById('ageing-total-delta');
-    if (deltaEl) {
-        var dv = document.getElementById('ageing-delta-value');
-        var dl = deltaEl.querySelector('.delta-label');
-        var diff = cmTotal - lmTotal;
-        if (snap.isFirstMonth || (lmTotal === 0 && cmTotal > 0)) {
-            if (dv) { dv.textContent = '+' + cmTotal.toLocaleString() + ' (new)'; dv.style.color = '#DC2626'; }
-            if (dl) dl.textContent = 'Change';
-        } else {
-            var pct = lmTotal > 0 ? ((diff / lmTotal) * 100) : 0;
-            var sign = diff >= 0 ? '+' : '';
-            if (dv) {
-                dv.textContent = diff === 0 ? '0' : sign + diff.toLocaleString() + ' (' + sign + pct.toFixed(1) + '%)';
-                dv.style.color = diff <= 0 ? '#16A34A' : '#DC2626';
-            }
-            if (dl) dl.textContent = diff <= 0 ? 'Reduction' : 'Increase';
-        }
+    var strip = document.getElementById('ageing-summary-strip');
+    if (strip) {
+        strip.style.display = 'flex';
+        strip.innerHTML =
+            '<span class="ageing-strip-item"><span class="ageing-strip-label">Current Month (' + formatMonth(snap.cmMonth) + ')</span><span class="ageing-strip-value">' + cmTotal.toLocaleString() + ' ctns</span></span>' +
+            '<span class="ageing-strip-item"><span class="ageing-strip-label">At risk \u226412 mo</span><span class="ageing-strip-value ageing-strip-danger">' + atRisk.toLocaleString() + ' (' + (cmTotal > 0 ? (atRisk / cmTotal * 100).toFixed(1) : 0) + '%)</span></span>' +
+            '<span class="ageing-strip-item"><span class="ageing-strip-label">Expired</span><span class="ageing-strip-value ageing-strip-bad">' + (cm['expired'] || 0).toLocaleString() + '</span></span>';
+    }
+
+    var cards = document.getElementById('ageing-cards');
+    if (cards) {
+        cards.innerHTML = AGE_BUCKET_ORDER.map(function (b) {
+            var cmq = cm[b] || 0, lmq = lm[b] || 0;
+            var share = cmTotal > 0 ? (cmq / cmTotal * 100) : 0;
+            return '<div class="ageing-card ac-' + b + '" role="button" tabindex="0" aria-label="' + AGE_BUCKET_LABELS[b] + ', current month ' + cmq.toLocaleString() + ', last month ' + lmq.toLocaleString() + '" onclick="showAgeingDrilldown(\'' + b + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();showAgeingDrilldown(\'' + b + '\');}">' +
+                '<div class="ageing-card-top"><span class="badge ' + ageBadgeClass(b) + '">' + AGE_BUCKET_LABELS[b] + '</span><span class="ageing-card-share">' + share.toFixed(1) + '%</span></div>' +
+                '<div class="ageing-card-cm">' + cmq.toLocaleString() + '</div>' +
+                '<div class="ageing-card-lm">Last Month (' + formatMonth(snap.lmMonth) + '): ' + lmq.toLocaleString() + '</div>' +
+                '</div>';
+        }).join('');
     }
 
     var excludedNote = document.getElementById('ageing-excluded-note');
@@ -1549,22 +1554,13 @@ function renderAgeingSummary() {
     var tbody = document.getElementById('tbody-ageing');
     tbody.innerHTML = AGE_BUCKET_ORDER.map(function (b) {
         var lmq = lm[b] || 0, cmq = cm[b] || 0;
-        var diff = cmq - lmq;
-        var deltaHtml;
-        if (snap.isFirstMonth) {
-            deltaHtml = '<span style="color:#DC2626;font-weight:600;">+' + cmq.toLocaleString() + '</span>';
-        } else if (lmq === 0 && cmq === 0) {
-            deltaHtml = '<span style="color:#6B7280;">0</span>';
-        } else {
-            var pct = lmq > 0 ? ((diff / lmq) * 100) : (cmq > 0 ? null : 0);
-            var arrow = diff > 0 ? '\u25B2 ' : (diff < 0 ? '\u25BC ' : '');
-            var pctStr = pct === null ? 'new' : (diff >= 0 ? '+' : '') + pct.toFixed(1) + '%';
-            var color = diff > 0 ? '#DC2626' : (diff < 0 ? '#16A34A' : '#6B7280');
-            deltaHtml = '<span style="color:' + color + ';font-weight:600;">' + arrow + (diff > 0 ? '+' : '') + diff.toLocaleString() + (pct === null ? ' (new)' : ' (' + pctStr + ')') + '</span>';
-        }
+        var share = cmTotal > 0 ? (cmq / cmTotal * 100) : 0;
+        var shareHtml = cmTotal > 0
+            ? '<div class="ageing-pct"><div class="ageing-bar"><div class="ageing-bar-fill" style="width:' + share.toFixed(1) + '%"></div></div><span class="ageing-pct-num">' + share.toFixed(1) + '%</span></div>'
+            : '<span style="color:var(--text-muted);">\u2014</span>';
         return '<tr class="' + ageRowClass(b) + '"><td><span class="badge ' + ageBadgeClass(b) + '">' + AGE_BUCKET_LABELS[b] + '</span>' +
             ' <a href="javascript:void(0)" onclick="showAgeingDrilldown(\'' + b + '\')" style="font-size:12px;color:#16A34A;margin-left:6px;">view \u2192</a>' +
-            '</td><td>' + lmq.toLocaleString() + '</td><td>' + cmq.toLocaleString() + '</td><td>' + deltaHtml + '</td></tr>';
+            '</td><td>' + lmq.toLocaleString() + '</td><td>' + cmq.toLocaleString() + '</td><td>' + shareHtml + '</td></tr>';
     }).join('');
 }
 
@@ -1596,14 +1592,13 @@ function exportAgeingSummary() {
     var cmTotal = cmItems.reduce(function (s, i) { return s + i.qty; }, 0);
     var quote = function (v) { return '"' + String(v === undefined || v === null ? '' : v).trim().replace(/"/g, '""') + '"'; };
     var csv = 'Inventory Expiry Ageing Summary\nReference: ' + formatMonth(snap.lmMonth) + ' vs ' + formatMonth(snap.cmMonth) + '\n\n';
-    csv += 'Category,Last Month Qty,Current Month Qty,Change\n';
+    csv += 'Category,Last Month Qty,Current Month Qty,% of Current Month\n';
     AGE_BUCKET_ORDER.forEach(function (b) {
         var lmq = lm[b] || 0, cmq = cm[b] || 0;
-        var diff = cmq - lmq;
-        var chg = snap.isFirstMonth ? '+' + cmq : (diff > 0 ? '+' : '') + diff;
-        csv += quote(AGE_BUCKET_LABELS[b]) + ',' + lmq + ',' + cmq + ',' + chg + '\n';
+        var share = cmTotal > 0 ? (cmq / cmTotal * 100).toFixed(1) : '0.0';
+        csv += quote(AGE_BUCKET_LABELS[b]) + ',' + lmq + ',' + cmq + ',' + share + '\n';
     });
-    csv += 'Total,' + lmTotal + ',' + cmTotal + ',' + (snap.isFirstMonth ? '+' : (cmTotal - lmTotal > 0 ? '+' : '')) + (cmTotal - lmTotal) + '\n';
+    csv += 'Total,' + lmTotal + ',' + cmTotal + ',100.0\n';
     downloadCSV(csv, 'Ageing_Summary_' + new Date().toISOString().slice(0, 10) + '.csv');
 }
 

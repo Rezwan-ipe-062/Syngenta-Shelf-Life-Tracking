@@ -1002,67 +1002,120 @@
 .monthly-table tbody td { padding: 9px 12px; font-size: 12px; white-space: normal; }
 #screen-monthly .table-wrap { overflow-x: hidden; }
 
-/* MONTHLY REPORT TOTAL COMPARE */
-.monthly-total-compare {
+/* MONTHLY REPORT AT-A-GLANCE STRIP */
+.ageing-strip {
     display: flex;
-    align-items: center;
-    gap: 24px;
-    margin-bottom: 20px;
-    padding: 28px;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
 }
-.month-compare-card {
-    flex: 1;
-    text-align: center;
-    padding: 28px 16px;
-    min-height: 170px;
+.ageing-strip-item {
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    border-radius: 10px;
+    gap: 2px;
+    padding: 10px 16px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
 }
-.lm-card { background: #eef2ff; }
-.cm-card { background: #f0fdf4; }
-.comparison-label {
-    font-size: 12px;
+.ageing-strip-label {
+    font-size: 11px;
     font-weight: 600;
-    color: #5A6672;
+    color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 8px;
+    letter-spacing: 0.4px;
 }
-.comparison-value {
-    font-size: 44px;
+.ageing-strip-value {
+    font-size: 18px;
     font-weight: 800;
     color: var(--text);
-    line-height: 1.1;
 }
-.comparison-month {
-    font-size: 13px;
-    color: #5A6672;
-    margin-top: 6px;
+.ageing-strip-danger, .ageing-strip-bad { color: #DC2626; }
+
+/* MONTHLY REPORT CATEGORY CARDS */
+.ageing-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
 }
-.comparison-delta {
-    text-align: center;
-    padding: 16px 22px;
-    border-radius: 10px;
-    background: var(--bg);
+.ageing-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+    background: var(--card);
     border: 1px solid var(--border);
-    min-width: 170px;
+    border-top: 3px solid transparent;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-.delta-label {
+.ageing-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+.ageing-card:focus-visible {
+    outline: 2px solid #16A34A;
+    outline-offset: 2px;
+}
+.ageing-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.ageing-card-share {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+.ageing-card-cm {
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1.1;
+    color: var(--text);
+}
+.ageing-card-lm {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+.ac-expired { border-top-color: #DC2626; }
+.ac-expired .ageing-card-cm { color: #DC2626; }
+.ac-crit { border-top-color: #EA580C; }
+.ac-crit .ageing-card-cm { color: #EA580C; }
+.ac-warn { border-top-color: #D97706; }
+.ac-warn .ageing-card-cm { color: #D97706; }
+.ac-notc { border-top-color: #2563EB; }
+.ac-notc .ageing-card-cm { color: #2563EB; }
+.ac-dist { border-top-color: #0891B2; }
+.ac-dist .ageing-card-cm { color: #0891B2; }
+.ac-futr { border-top-color: var(--border); }
+.ac-futr .ageing-card-cm { color: var(--text-secondary); }
+
+/* MONTHLY REPORT SHARE BAR */
+.ageing-pct {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 120px;
+}
+.ageing-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--border-soft);
+    border-radius: 3px;
+    overflow: hidden;
+}
+.ageing-bar-fill {
+    height: 100%;
+    background: #16A34A;
+    border-radius: 3px;
+}
+.ageing-pct-num {
     font-size: 12px;
     font-weight: 600;
-    color: #5A6672;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-bottom: 6px;
-}
-.delta-value {
-    font-size: 24px;
-    font-weight: 700;
+    color: var(--text-secondary);
 }
 
 /* MONTHLY REPORT BUCKET CHANGE CARDS */
@@ -1135,12 +1188,6 @@
     text-align: right;
 }
 @media (prefers-color-scheme: dark) {
-    .lm-card { background: #1e293b; }
-    .cm-card { background: #0f2d1a; }
-    .comparison-label { color: #A6B4C0; }
-    .comparison-value { color: #F3F6F4; }
-    .comparison-month { color: #A6B4C0; }
-    .delta-label { color: #A6B4C0; }
-    .delta-value { color: #F3F6F4; }
-    .comparison-delta { background: #111C2F; border-color: #1e293b; }
+    .ageing-card:hover { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); }
+    .ageing-bar { background: #1e293b; }
 }
