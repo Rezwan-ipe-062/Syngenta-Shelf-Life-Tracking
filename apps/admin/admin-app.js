@@ -1014,6 +1014,45 @@ function saveEditTransaction() {
     });
 }
 
+function deleteEditTransaction() {
+    if (!editRow) return;
+    if (!gateCheck('delete this transaction')) return;
+    if (!navigator.onLine) { alert('An online connection is needed to delete transactions.'); return; }
+    if (!window.syncManager || !window.syncManager.deleteTransactions) { alert('Sync not available.'); return; }
+
+    var opData = loadOperatorData();
+    var lotKey = [editRow.product, editRow.packSize || '', editRow.productionMonth || '', editRow.warehouse || ''].join('|');
+    var withRow = (window.syncManager.computeInventory(opData.transactions || [])).find(function (i) {
+        return [i.product, i.packSize || '', i.productionMonth || '', i.warehouse || ''].join('|') === lotKey;
+    });
+    var without = (window.syncManager.computeInventory((opData.transactions || []).filter(function (t) { return t.timestamp !== editRow.timestamp; }))).find(function (i) {
+        return [i.product, i.packSize || '', i.productionMonth || '', i.warehouse || ''].join('|') === lotKey;
+    });
+    var beforeQty = withRow ? withRow.quantity : 0;
+    var afterQty = without ? without.quantity : 0;
+
+    var head = editRow.product + ' ' + (editRow.packSize || '') + ' \u00b7 ' + (editRow.type || '') + ' ' + editRow.quantity +
+        ' \u00b7 ' + (editRow.productionMonth || '\u2014') + ' \u00b7 ' + (editRow.warehouse || '\u2014') + ' \u00b7 ' + (editRow.date || editRow.timestamp || '');
+    var impact = beforeQty === afterQty
+        ? 'No stock exists for this lot \u2014 inventory unchanged. Removes the ledger/Activity record only.'
+        : 'Stock for this lot: ' + beforeQty + ' \u2192 ' + afterQty + (afterQty > beforeQty ? ' (+' + (afterQty - beforeQty) + ' restored).' : ' (' + (afterQty - beforeQty) + ').');
+    if (!confirm('Delete this transaction?\n\n' + head + '\n\n' + impact + '\n\nThis cannot be undone.')) return;
+
+    closeEditModal();
+    window.syncManager.deleteTransactions([{ client_timestamp: editRow.timestamp }]).then(function (res) {
+        if (res && res.success) {
+            return window.syncManager.pullAllForce().then(function () {
+                renderEditList();
+                renderInventory();
+                renderActivity(currentActivityFilter);
+                renderDashboard();
+                alert('Transaction deleted. ' + impact);
+            });
+        }
+        alert('Delete failed' + (res && res.error ? ': ' + res.error : ' — try again.'));
+    });
+}
+
 // ==============================
 // INVENTORY TABLE
 // ==============================

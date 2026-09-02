@@ -80,6 +80,8 @@
 
         getSyncStatus: function () { return syncStatus; },
 
+        computeInventory: computeInventory,
+
         ping: function () {
             if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('YOUR_DEPLOYMENT_URL') !== -1) return Promise.resolve({ ok: false });
             return apiGet('ping').catch(function () { return { ok: false }; });
@@ -357,6 +359,20 @@
                 compositeKey: ['key'],
                 items: [{ key: 'product-list', value: JSON.stringify(productList) }]
             }).catch(function (e) { console.warn('pushProducts error', e.message || e); });
+        },
+
+        // Removes transactions by client_timestamp; server rebuilds the
+        // inventory tab. Used by the admin Edit screen's Delete button.
+        deleteTransactions: function (items) {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('YOUR_DEPLOYMENT_URL') !== -1) return Promise.resolve({ success: false, deleted: 0 });
+            return apiPost({
+                action: 'deleteTransactions',
+                sheet: 'transactions',
+                items: items
+            }).catch(function (e) {
+                console.warn('deleteTransactions error', e.message || e);
+                return { success: false, deleted: 0 };
+            });
         },
 
         // Overwrites transaction fields in place, matched by client_timestamp

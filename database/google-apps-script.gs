@@ -365,6 +365,10 @@ function doPost(e) {
         return handleUpdateTransactions(body);
     }
 
+    if (action === 'deleteTransactions') {
+        return handleDeleteTransactions(body);
+    }
+
     return jsonResponse({ error: 'Unknown POST action' });
 }
 
@@ -695,6 +699,20 @@ function handleClearByDateRange(startDate, endDate) {
 //
 // Body: { action: 'updateTransactions', items: [{ client_timestamp, product, ... }] }
 // ==========================================================
+function rebuildInventoryTab(ss, txSheet) {
+    var allTx = [];
+    if (txSheet.getLastRow() >= 2) {
+        allTx = txSheet.getRange(2, 1, txSheet.getLastRow() - 1, txSheet.getLastColumn()).getValues();
+    }
+    var invSheet = ss.getSheetByName('inventory');
+    if (invSheet && invSheet.getLastRow() > 1) {
+        invSheet.deleteRows(2, invSheet.getLastRow() - 1);
+    }
+    if (allTx.length > 0) {
+        updateInventoryFromTransactions(ss, allTx);
+    }
+}
+
 function handleUpdateTransactions(body) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var txSheet = ss.getSheetByName('transactions');
@@ -738,21 +756,50 @@ function handleUpdateTransactions(body) {
     // Batch-write all cells in one go for speed
     writeVals.forEach(function (v) { txSheet.getRange(v.r, v.c).setValue(v.v); });
 
-    // Rebuild the inventory tab from all transactions (product key may have changed)
-    if (txSheet.getLastRow() >= 2) {
-        var allTx = txSheet.getRange(2, 1, txSheet.getLastRow() - 1, txSheet.getLastColumn()).getValues();
-    } else {
-        allTx = [];
-    }
-    var invSheet = ss.getSheetByName('inventory');
-    if (invSheet && invSheet.getLastRow() > 1) {
-        invSheet.deleteRows(2, invSheet.getLastRow() - 1);
-    }
-    if (allTx.length > 0) {
-        updateInventoryFromTransactions(ss, allTx);
-    }
+    rebuildInventoryTab(ss, txSheet);
 
     return jsonResponse({ success: true, updated: updated });
+}
+
+// ==========================================================
+// DELETE TRANSACTIONS — remove rows from the transactions
+// ledger by client_timestamp, then rebuild the inventory tab.
+// Used by the admin Edit screen's Delete button.
+//
+// Body: { action: 'deleteTransactions', items: [{ client_timestamp }] }
+// ==========================================================
+function handleDeleteTransactions(body) {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var txSheet = ss.getSheetByName('transactions');
+    if (!txSheet) return jsonResponse({ error: 'Sheet not found: transactions' });
+
+    var items = body.items || [];
+    if (items.length === 0) return jsonResponse({ success: true, deleted: 0 });
+
+    var lastRow = txSheet.getLastRow();
+    var lastCol = txSheet.getLastColumn();
+    var data = lastRow >= 1 ? txSheet.getRange(1, 1, lastRow, lastCol).getValues() : [];
+    if (data.length < 2) return jsonResponse({ success: true, deleted: 0 });
+
+    var headers = data[0];
+    var tsIdx = headers.indexOf('client_timestamp');
+    if (tsIdx < 0) return jsonResponse({ error: 'client_timestamp column missing' });
+
+    var deleteRows = {};
+    items.forEach(function (item) {
+        var ts = String(item.client_timestamp || '');
+        if (!ts) return;
+        for (var r = 1; r < data.length; r++) {
+            if (String(data[r][tsIdx]) === ts) { deleteRows[r] = true; break; }
+        }
+    });
+
+    var rows = Object.keys(deleteRows).map(Number).sort(function (a, b) { return b - a; });
+    rows.forEach(function (r) { txSheet.deleteRow(r + 1); });
+
+    rebuildInventoryTab(ss, txSheet);
+
+    return jsonResponse({ success: true, deleted: rows.length });
 }
 
 // ==========================================================

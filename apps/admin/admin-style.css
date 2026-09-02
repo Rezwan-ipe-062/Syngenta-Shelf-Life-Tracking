@@ -772,6 +772,17 @@
             border: 1px solid var(--border);
         }
 
+        .modal-btn.danger {
+            background: transparent;
+            color: var(--red);
+            border: 1px solid var(--red);
+        }
+
+        .modal-btn.danger:active {
+            background: var(--red);
+            color: #fff;
+        }
+
         /* ==============================
            RESPONSIVE
            ============================== */

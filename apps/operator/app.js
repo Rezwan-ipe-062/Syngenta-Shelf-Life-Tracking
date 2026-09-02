@@ -548,6 +548,14 @@ function doTransaction(type, qty) {
     }
 
     var prodMonthCode = state.selectedYear + state.selectedMonth;
+
+    if (type === 'dispatch') {
+        var hasStock = state.inventory.some(function (it) {
+            return it.product === state.selectedProduct && it.packSize === state.selectedPackSize
+                && it.productionMonth === prodMonthCode && it.warehouse === state.warehouse;
+        });
+        if (!hasStock && !confirm('No stock found for ' + state.selectedProduct + ' ' + state.selectedPackSize + ' (code ' + prodMonthCode + ') in ' + state.warehouse + '.\nRecord dispatch anyway?')) return;
+    }
     var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     var expiryFullYear = 2020 + parseInt(state.selectedExpiryYear);
     var expiryMonthName = monthNames[parseInt(state.selectedExpiryMonth)];
