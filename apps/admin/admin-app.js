@@ -1200,12 +1200,32 @@ function exportCsv(filter, prefix) {
 function exportInventory() {
     const opData = loadOperatorData();
     const search = (document.getElementById('inv-search').value || '').toLowerCase();
-    let data = filterByWarehouse(opData.inventory || []).map(item => ({
-        product: item.product, pack: item.packSize, prefix: (PRODUCTS.find(p => p.name === item.product && p.pack === item.packSize) || {}).prefix || '', code: item.productionMonth || '', prodMonth: item.productionMonth || '', expiry: item.expiryMonth || '', qty: item.quantity, warehouse: item.warehouse || ''
-    }));
-    if (search) data = data.filter(d => d.product.toLowerCase().includes(search));
-    let csv = 'Product,Pack,Prefix,Code,Prod Month,Expiry,Qty,Warehouse\n';
-    data.forEach(d => { csv += d.product + ',' + d.pack + ',' + d.prefix + ',' + d.code + ',' + d.prodMonth + ',' + d.expiry + ',' + d.qty + ',' + d.warehouse + '\n'; });
+    let data = filterByWarehouse(opData.inventory || []).map(item => {
+        const ml = item.expiryMonth ? monthsUntilExpiry(item.expiryMonth) : null;
+        return {
+            product: item.product, pack: item.packSize,
+            prefix: (PRODUCTS.find(p => p.name === item.product && p.pack === item.packSize) || {}).prefix || '',
+            code: getAgiCode(item.product, item.packSize || ''),
+            prodMonth: item.productionMonth || '',
+            expiry: item.expiryMonth || '',
+            qty: item.quantity,
+            warehouse: item.warehouse || '',
+            monthsLeft: ml,
+            level: ml !== null ? getExpiryLevel(ml) : null
+        };
+    });
+    if (search) {
+        data = data.filter(d => d.product.toLowerCase().includes(search) || d.code.toLowerCase().includes(search));
+    }
+    if (currentInvLevels.size > 0) {
+        data = data.filter(d => d.level && currentInvLevels.has(d.level));
+    }
+    const quote = v => '"' + String(v === undefined || v === null ? '' : v).replace(/"/g, '""') + '"';
+    const fmtLeft = ml => ml === null ? '' : ml;
+    let csv = 'Product,Pack,Prefix,AGI Code,Prod Month,Expiry,Months Left,Qty,Warehouse\n';
+    data.forEach(d => {
+        csv += [d.product, d.pack, d.prefix, d.code, d.prodMonth, d.expiry, fmtLeft(d.monthsLeft), d.qty, d.warehouse].map(quote).join(',') + '\n';
+    });
     downloadCSV(csv, 'Inventory_' + new Date().toISOString().slice(0, 10) + '.csv');
 }
 
