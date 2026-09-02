@@ -1038,8 +1038,9 @@ function deleteEditTransaction() {
         : 'Stock for this lot: ' + beforeQty + ' \u2192 ' + afterQty + (afterQty > beforeQty ? ' (+' + (afterQty - beforeQty) + ' restored).' : ' (' + (afterQty - beforeQty) + ').');
     if (!confirm('Delete this transaction?\n\n' + head + '\n\n' + impact + '\n\nThis cannot be undone.')) return;
 
+    var deleteTs = editRow.timestamp;
     closeEditModal();
-    window.syncManager.deleteTransactions([{ client_timestamp: editRow.timestamp }]).then(function (res) {
+    window.syncManager.deleteTransactions([{ client_timestamp: deleteTs }]).then(function (res) {
         if (res && res.success) {
             return window.syncManager.pullAllForce().then(function () {
                 renderEditList();
