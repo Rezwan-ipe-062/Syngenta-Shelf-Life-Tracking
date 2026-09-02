@@ -1700,13 +1700,14 @@ function renderCohortFollowup() {
 
     var kpis = document.getElementById('cohort-kpis');
     var redPctStr = c.redPct === null ? '\u2014' : c.redPct.toFixed(1) + '%';
+    var baseline = c.snap.isFirstMonth;
     kpis.innerHTML =
-        cohortKpiChip('Risk Batches', c.riskBatches, 'from last month') +
+        cohortKpiChip('Risk Batches', c.riskBatches, baseline ? 'this month' : 'from last month') +
         cohortKpiChip(formatMonth(c.snap.lmMonth) + ' Risk Qty', c.lmRisk.toLocaleString()) +
         cohortKpiChip(formatMonth(c.snap.cmMonth) + ' Remaining', c.cmRemain.toLocaleString()) +
-        cohortKpiChip('Qty Reduction', c.reduction.toLocaleString(), redPctStr, c.reduction < 0 ? '#DC2626' : (c.reduction > 0 ? '#16A34A' : '')) +
+        cohortKpiChip('Qty Reduction', (baseline ? 0 : c.reduction).toLocaleString(), redPctStr, baseline ? '' : (c.reduction < 0 ? '#DC2626' : (c.reduction > 0 ? '#16A34A' : ''))) +
         cohortKpiChip('Fully Cleared \u2713', c.cleared, 'green status', '#16A34A') +
-        cohortKpiChip('Increased Exposure \u25B2', c.increased, 'red status', c.increased > 0 ? '#DC2626' : '');
+        cohortKpiChip('Increased Exposure \u25B2', baseline ? '\u2014' : c.increased, baseline ? '' : 'red status', baseline ? '' : (c.increased > 0 ? '#DC2626' : ''));
 
     var tbody = document.getElementById('tbody-cohort');
     if (c.rows.length === 0) {
