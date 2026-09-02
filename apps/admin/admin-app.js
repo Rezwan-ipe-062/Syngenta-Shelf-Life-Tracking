@@ -1038,7 +1038,7 @@ function renderInventory() {
 
     const groups = {};
     data.forEach(d => {
-        const key = d.product + '|' + d.pack;
+        const key = d.product + '|' + d.pack + '|' + d.warehouse;
         if (!groups[key]) groups[key] = [];
         groups[key].push(d);
     });
@@ -1048,7 +1048,7 @@ function renderInventory() {
         let runningMin = group[group.length - 1].qty
         for (let i = group.length - 2; i >= 0; i--) {
             if (group[i].qty > runningMin) {
-                highlighted.add(group[i].product + '|' + group[i].pack + '|' + group[i].prodMonth);
+                highlighted.add(group[i].product + '|' + group[i].pack + '|' + group[i].prodMonth + '|' + group[i].warehouse);
             }
             runningMin = Math.min(runningMin, group[i].qty)
         }
@@ -1067,7 +1067,7 @@ function renderInventory() {
         const first = items[0];
         html += '<tr style="background:var(--table-header)"><td colspan="9" style="padding:10px 16px;font-weight:600;font-size:14px;">' + first.product + ' ' + first.pack + '</td></tr>';
         items.forEach(d => {
-            const fefoClass = highlighted.has(d.product + '|' + d.pack + '|' + d.prodMonth) ? ' style="background:#FEF3C7;"' : '';
+            const fefoClass = highlighted.has(d.product + '|' + d.pack + '|' + d.prodMonth + '|' + d.warehouse) ? ' style="background:#FEF3C7;"' : '';
             var mlDisplay = d.monthsLeft !== null ? '<span class="badge badge-' + (d.level === 'distant' ? 'distant' : d.level) + '">' + (d.level === 'expired' ? 'EXPIRED' : d.monthsLeft + 'M') + '</span>' : '\u2014';
             html += '<tr' + fefoClass + '><td>' + d.product + '</td><td>' + d.pack + '</td><td>' + (d.prefix || '\u2014') + '</td><td>' + (d.code || '\u2014') + '</td><td>' + d.prodMonth + '</td><td>' + (d.expiry || '\u2014') + '</td><td>' + mlDisplay + '</td><td>' + d.qty + '</td><td>' + (d.warehouse || '\u2014') + '</td></tr>';
         });
