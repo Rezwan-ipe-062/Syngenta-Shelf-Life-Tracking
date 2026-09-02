@@ -998,8 +998,8 @@
 }
 
 .monthly-table { width: 100%; }
-.monthly-table thead th { padding: 10px 12px; }
-.monthly-table tbody td { padding: 9px 12px; font-size: 12px; white-space: normal; }
+.monthly-table thead th { padding: 10px 8px; }
+.monthly-table tbody td { padding: 9px 8px; font-size: 12px; white-space: normal; }
 #screen-monthly .table-wrap { overflow-x: hidden; }
 
 /* MONTHLY REPORT AT-A-GLANCE STRIP */
@@ -1097,23 +1097,23 @@
 .ageing-pct {
     display: flex;
     align-items: center;
-    gap: 8px;
-    min-width: 120px;
+    gap: 4px;
+    min-width: 62px;
 }
 .ageing-bar {
     flex: 1;
-    height: 6px;
+    height: 4px;
     background: var(--border-soft);
-    border-radius: 3px;
+    border-radius: 2px;
     overflow: hidden;
 }
 .ageing-bar-fill {
     height: 100%;
     background: #16A34A;
-    border-radius: 3px;
+    border-radius: 2px;
 }
 .ageing-pct-num {
-    font-size: 12px;
+    font-size: 10px;
     font-weight: 600;
     color: var(--text-secondary);
 }

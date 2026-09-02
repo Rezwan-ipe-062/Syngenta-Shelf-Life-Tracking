@@ -1493,7 +1493,7 @@ function renderAgeingSummary() {
         var en = document.getElementById('ageing-excluded-note');
         if (en) en.style.display = 'none';
         var tb = document.getElementById('tbody-ageing');
-        if (tb) tb.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--text-muted);">No transaction data yet. Start counting from the operator app.</td></tr>';
+        if (tb) tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted);">No transaction data yet. Start counting from the operator app.</td></tr>';
         return;
     }
     var lmItems = filterByWarehouse(snap.lmSnapshot);
@@ -1554,13 +1554,23 @@ function renderAgeingSummary() {
     var tbody = document.getElementById('tbody-ageing');
     tbody.innerHTML = AGE_BUCKET_ORDER.map(function (b) {
         var lmq = lm[b] || 0, cmq = cm[b] || 0;
+        var change = cmq - lmq;
+        var changeCls = change > 0 ? 'movement-up' : (change < 0 ? 'movement-down' : '');
+        var changeHtml = '<span class="' + changeCls + '">' + (change > 0 ? '+' : '') + change.toLocaleString() + '</span>';
+        var changePctHtml;
+        if (lmq > 0) {
+            var pct = change / lmq * 100;
+            changePctHtml = '<span class="' + changeCls + '">' + (change > 0 ? '+' : '') + pct.toFixed(1) + '%</span>';
+        } else {
+            changePctHtml = '<span class="' + changeCls + '">' + (cmq > 0 ? 'New' : '\u2014') + '</span>';
+        }
         var share = cmTotal > 0 ? (cmq / cmTotal * 100) : 0;
         var shareHtml = cmTotal > 0
             ? '<div class="ageing-pct"><div class="ageing-bar"><div class="ageing-bar-fill" style="width:' + share.toFixed(1) + '%"></div></div><span class="ageing-pct-num">' + share.toFixed(1) + '%</span></div>'
             : '<span style="color:var(--text-muted);">\u2014</span>';
         return '<tr class="' + ageRowClass(b) + '"><td><span class="badge ' + ageBadgeClass(b) + '">' + AGE_BUCKET_LABELS[b] + '</span>' +
             ' <a href="javascript:void(0)" onclick="showAgeingDrilldown(\'' + b + '\')" style="font-size:12px;color:#16A34A;margin-left:6px;">view \u2192</a>' +
-            '</td><td>' + lmq.toLocaleString() + '</td><td>' + cmq.toLocaleString() + '</td><td>' + shareHtml + '</td></tr>';
+            '</td><td>' + lmq.toLocaleString() + '</td><td>' + cmq.toLocaleString() + '</td><td>' + changeHtml + '</td><td>' + changePctHtml + '</td><td>' + shareHtml + '</td></tr>';
     }).join('');
 }
 
