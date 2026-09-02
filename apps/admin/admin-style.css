@@ -1131,6 +1131,14 @@
     border-radius: 10px;
     padding: 16px 20px;
 }
+.bucket-change-card:hover {
+    border-color: #2dd4bf;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, .08);
+}
+.bucket-change-card:focus-visible {
+    outline: 2px solid #14b8a6;
+    outline-offset: 2px;
+}
 .bucket-change-title {
     font-size: 11px;
     font-weight: 600;

@@ -1688,8 +1688,9 @@ function buildCohort() {
     return stats;
 }
 
-function cohortKpiChip(title, value, extra, color) {
-    return '<div class="bucket-change-card"><div class="bucket-change-title">' + title + '</div>' +
+function cohortKpiChip(title, value, extra, color, kind) {
+    var clickable = kind ? ' style="cursor:pointer;" onclick="showCohortChipBreakdown(\'' + kind + '\')" tabindex="0" role="button" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){showCohortChipBreakdown(\'' + kind + '\');}"' : '';
+    return '<div class="bucket-change-card"' + clickable + '><div class="bucket-change-title">' + title + '</div>' +
         '<div class="bucket-change-values"' + (color ? ' style="color:' + color + ';"' : '') + '>' + value + '</div>' +
         (extra ? '<div class="bucket-change-delta">' + extra + '</div>' : '') + '</div>';
 }
@@ -1702,12 +1703,12 @@ function renderCohortFollowup() {
     var redPctStr = c.redPct === null ? '\u2014' : c.redPct.toFixed(1) + '%';
     var baseline = c.snap.isFirstMonth;
     kpis.innerHTML =
-        cohortKpiChip('Risk Batches', c.riskBatches, baseline ? 'this month' : 'from last month') +
-        cohortKpiChip(formatMonth(c.snap.lmMonth) + ' Risk Qty', c.lmRisk.toLocaleString()) +
-        cohortKpiChip(formatMonth(c.snap.cmMonth) + ' Remaining', c.cmRemain.toLocaleString()) +
-        cohortKpiChip('Qty Reduction', (baseline ? 0 : c.reduction).toLocaleString(), redPctStr, baseline ? '' : (c.reduction < 0 ? '#DC2626' : (c.reduction > 0 ? '#16A34A' : ''))) +
-        cohortKpiChip('Fully Cleared \u2713', c.cleared, 'green status', '#16A34A') +
-        cohortKpiChip('Increased Exposure \u25B2', baseline ? '\u2014' : c.increased, baseline ? '' : 'red status', baseline ? '' : (c.increased > 0 ? '#DC2626' : ''));
+        cohortKpiChip('Risk Batches', c.riskBatches, baseline ? 'this month' : 'from last month', '', 'risk') +
+        cohortKpiChip(formatMonth(c.snap.lmMonth) + ' Risk Qty', c.lmRisk.toLocaleString(), '', '', 'lm') +
+        cohortKpiChip(formatMonth(c.snap.cmMonth) + ' Remaining', c.cmRemain.toLocaleString(), '', '', 'cm') +
+        cohortKpiChip('Qty Reduction', (baseline ? 0 : c.reduction).toLocaleString(), redPctStr, baseline ? '' : (c.reduction < 0 ? '#DC2626' : (c.reduction > 0 ? '#16A34A' : '')), 'reduction') +
+        cohortKpiChip('Fully Cleared \u2713', c.cleared, 'green status', '#16A34A', 'cleared') +
+        cohortKpiChip('Increased Exposure \u25B2', baseline ? '\u2014' : c.increased, baseline ? '' : 'red status', baseline ? '' : (c.increased > 0 ? '#DC2626' : ''), 'increased');
 
     var tbody = document.getElementById('tbody-cohort');
     if (c.rows.length === 0) {
@@ -1727,6 +1728,53 @@ function renderCohortFollowup() {
             '<td>' + d.r.lmQty.toLocaleString() + '</td><td>' + d.cmQty.toLocaleString() + '</td><td>' + netHtml + '</td>' +
             '<td>' + (d.r.lmQty > 0 ? d.redPct.toFixed(1) + '%' : '\u2014') + '</td><td>' + statusHtml + '</td></tr>';
     }).join('');
+}
+
+function showCohortChipBreakdown(kind) {
+    var c = buildCohort();
+    var snap = c.snap;
+    var titles = {
+        risk: 'Risk batches \u2014 ' + formatMonth(snap.lmMonth) + ' cohort tracked vs ' + formatMonth(snap.cmMonth),
+        lm: formatMonth(snap.lmMonth) + ' risk qty \u2014 batches from last month',
+        cm: formatMonth(snap.cmMonth) + ' remaining \u2014 batches still on hand',
+        reduction: 'Qty reduction \u2014 batches with net decrease',
+        cleared: 'Fully cleared \u2014 batches at 0 in ' + formatMonth(snap.cmMonth),
+        increased: 'Increased exposure \u2014 batches with more this month'
+    };
+    var empties = {
+        risk: 'No batches in the risk cohort.',
+        lm: 'No prior-month risk qty (baseline month \u2014 baseline builds this month).',
+        cm: 'No batches remain on hand this month.',
+        reduction: 'No batch reduced yet \u2014 all are new this month.',
+        cleared: 'No batches fully cleared yet this month.',
+        increased: snap.isFirstMonth ? 'Baseline month \u2014 all at-risk SKUs are listed under Risk Batches.' : 'No batch increased this month.'
+    };
+    var rows = c.rows.filter(function (d) {
+        if (kind === 'lm') return d.r.lmQty > 0;
+        if (kind === 'cm') return d.cmQty > 0;
+        if (kind === 'reduction') return d.net < 0;
+        if (kind === 'cleared') return d.cleared;
+        if (kind === 'increased') return d.increased;
+        return true;
+    });
+    document.getElementById('drilldown-title').textContent = titles[kind] + ' (' + rows.length + ')';
+    document.getElementById('thead-drilldown').innerHTML = '<tr><th>SKU / Product</th><th>Pack</th><th>Code</th><th>Expiry</th><th>LM Qty</th><th>CM Qty</th><th>Net</th><th>Status</th></tr>';
+    var tbody = document.getElementById('tbody-drilldown');
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">' + empties[kind] + '</td></tr>';
+    } else {
+        tbody.innerHTML = rows.map(function (d) {
+            var statusColor = d.statusCls === 'movement-up' ? '#DC2626' : (d.statusCls === 'movement-down' ? '#16A34A' : '');
+            var netHtml = '<span class="' + (d.net > 0 ? 'movement-up' : (d.net < 0 ? 'movement-down' : '')) + '">' + (d.net > 0 ? '+' : '') + d.net.toLocaleString() + '</span>';
+            var statusHtml = '<span style="' + (statusColor ? 'color:' + statusColor + ';' : '') + 'font-weight:600;">' + d.statusText + '</span>';
+            return '<tr class="' + ageRowClass(d.cmBucket) + '" style="cursor:pointer;" onclick="showCohortDetail(\'' + escQuote(d.r.product) + '\',\'' + escQuote(d.r.pack || '') + '\',\'' + escQuote(d.r.code || '') + '\')">' +
+                '<td>' + d.r.product + '</td><td>' + (d.r.pack || '\u2014') + '</td>' +
+                '<td style="' + (d.cmBucket === 'expired' ? 'color:#DC2626;font-weight:600;' : (d.cmBucket === 'crit' ? 'color:#EA580C;font-weight:600;' : '')) + '">' + d.r.expiry + '</td>' +
+                '<td>' + d.r.lmQty.toLocaleString() + '</td><td>' + d.cmQty.toLocaleString() + '</td><td>' + netHtml + '</td>' +
+                '<td>' + (d.r.lmQty > 0 ? d.redPct.toFixed(1) + '%' : '\u2014') + '</td><td>' + statusHtml + '</td></tr>';
+        }).join('');
+    }
+    document.getElementById('drilldown-modal').classList.add('open');
 }
 
 function showCohortDetail(product, pack, code) {
@@ -1914,6 +1962,7 @@ function showDrilldown(level) {
 }
 
 function closeDrilldown() {
+    document.getElementById('thead-drilldown').innerHTML = '<tr><th>Product</th><th>Pack</th><th>Code</th><th>Expiry</th><th>Qty</th><th>Left</th><th>Warehouse</th></tr>';
     document.getElementById('drilldown-modal').classList.remove('open');
 }
 
