@@ -1321,7 +1321,7 @@ function parseEntryDate(tx) {
 
 function monthEndOf(ym) {
     if (!ym) return 0;
-    var d = new Date(parseInt(ym.slice(0, 4)), parseInt(ym.slice(5, 7)), 1);
+    var d = new Date(parseInt(ym.slice(0, 4)), parseInt(ym.slice(5, 7)) - 1, 1);
     d.setMonth(d.getMonth() + 1, 0);
     d.setHours(23, 59, 59, 999);
     return d.getTime();
@@ -1329,7 +1329,7 @@ function monthEndOf(ym) {
 
 function monthStartOf(ym) {
     if (!ym) return 0;
-    return new Date(parseInt(ym.slice(0, 4)), parseInt(ym.slice(5, 7)), 1, 0, 0, 0, 0).getTime();
+    return new Date(parseInt(ym.slice(0, 4)), parseInt(ym.slice(5, 7)) - 1, 1, 0, 0, 0, 0).getTime();
 }
 
 // Rebuild inventory at a cutoff from the ledger, mirroring the operator
