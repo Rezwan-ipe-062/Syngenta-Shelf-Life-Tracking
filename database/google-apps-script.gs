@@ -756,6 +756,171 @@ function handleUpdateTransactions(body) {
 }
 
 // ==========================================================
+// AUTO MONTH-END SNAPSHOTS — time-triggered month-end freezer
+// ==========================================================
+// On the 1st of each month, stores the prior month's closing inventory
+// (product-wise, mirroring the admin report's cumulative rebuild) into
+// the snapshots tab. Idempotent: months already stored are skipped.
+// Writes ONLY to snapshots — never touches transactions/inventory.
+// Month boundaries use Bangladesh time (+6) to match the report.
+// ==========================================================
+var SNAPSHOT_BD_OFFSET_MS = 6 * 60 * 60 * 1000;
+
+// End of month m (1-12) of year y in BD local time, as a UTC ms instant.
+function bdMonthEndTs(y, m) {
+    return Date.UTC(y, m, 1) - SNAPSHOT_BD_OFFSET_MS - 1;
+}
+
+// Returns { y, m } of the end of the expiry month, or null if unparseable.
+// Accepts "Mar 2028" (as stored on the sheet) or a Date object.
+function snapshotExpiryYearMonth_(expiryStr) {
+    var s = expiryStr instanceof Date
+        ? normalizeDateValue(expiryStr, 'expiry_month')
+        : String(expiryStr || '').trim();
+    var p = s.split(' ');
+    var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var mi = monthNames.indexOf(p[0]);
+    var y = parseInt(p[1], 10);
+    if (mi < 0 || isNaN(y) || String(y).length !== 4) return null;
+    return { y: y, m: mi };
+}
+
+// Whole months from snapshot month-end to expiry month-end (matches report age buckets).
+function snapshotAgeMonths_(expiryStr, refY, refM) {
+    var e = snapshotExpiryYearMonth_(expiryStr);
+    if (!e) return null;
+    return (e.y - refY) * 12 + (e.m - refM);
+}
+
+// Prompts are the months (BD) from minMs to maxMs — never empty.
+function snapshotCandidateMonths_(minMs, maxMs) {
+    var y1, m1, y2, m2, months = [];
+    var d1 = new Date(minMs + SNAPSHOT_BD_OFFSET_MS), d2 = new Date(maxMs + SNAPSHOT_BD_OFFSET_MS);
+    y1 = d1.getUTCFullYear(); m1 = d1.getUTCMonth();
+    y2 = d2.getUTCFullYear(); m2 = d2.getUTCMonth();
+    while (y1 < y2 || (y1 === y2 && m1 <= m2)) {
+        months.push({ y: y1, m: m1 });
+        m1++; if (m1 > 11) { m1 = 0; y1++; }
+    }
+    return months;
+}
+
+// Builds one month's closing inventory rows using the same cumulative rules
+// the admin report uses: receive +, dispatch -, adjustment = ; expiry of the
+// first lot per key wins. Key: product|pack_size|production_month|warehouse.
+function snapshotBuildRows_(txs, y, m) {
+    var cutoff = bdMonthEndTs(y, m);
+    var sorted = txs.filter(function (t) { return t.ts <= cutoff; });
+    sorted.sort(function (a, b) { return a.ts - b.ts; });
+    var inv = {};
+    sorted.forEach(function (t) {
+        var key = t.product + '|' + t.pack + '|' + t.prod + '|' + t.wh;
+        var cur = inv[key];
+        if (t.type === 'receive') {
+            if (cur) { cur.qty += t.qty; }
+            else { inv[key] = { product: t.product, pack: t.pack, prod: t.prod, expiry: t.expiry, qty: t.qty, wh: t.wh }; }
+        } else if (t.type === 'dispatch') {
+            if (cur) { cur.qty = Math.max(0, cur.qty - t.qty); if (cur.qty === 0) delete inv[key]; }
+        } else if (t.type === 'adjustment') {
+            if (cur) { cur.qty = t.qty; }
+            else if (t.qty > 0) { inv[key] = { product: t.product, pack: t.pack, prod: t.prod, expiry: t.expiry, qty: t.qty, wh: t.wh }; }
+        }
+    });
+    var snapshotMonth = y + '-' + ('0' + (m + 1)).slice(-2);
+    var rows = [];
+    Object.keys(inv).forEach(function (k) {
+        var i = inv[k];
+        if (i.qty > 0) {
+            rows.push({
+                snapshot_month: snapshotMonth,
+                product: i.product,
+                pack_size: i.pack,
+                production_month: i.prod,
+                expiry_month: i.expiry,
+                quantity: i.qty,
+                warehouse: i.wh,
+                age_months: snapshotAgeMonths_(i.expiry, y, m)
+            });
+        }
+    });
+    return rows;
+}
+
+// Scheduled entry point (time trigger, 1st of month). Also safe to run
+// manually from the editor — it only writes months that have ended and are
+// not already stored, so re-runs are harmless.
+function autoSnapshotMonthEnd() {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var txSheet = ss.getSheetByName('transactions');
+    if (!txSheet || txSheet.getLastRow() < 2) return { success: false, reason: 'no transactions' };
+
+    var data = txSheet.getRange(1, 1, txSheet.getLastRow(), txSheet.getLastColumn()).getValues();
+    var headers = data[0];
+    function col(h) { return headers.indexOf(h); }
+    var cProd = col('product'), cPack = col('pack_size'), cProdM = col('production_month'),
+        cExp = col('expiry_month'), cQty = col('quantity'), cType = col('type'),
+        cWh = col('warehouse'), cTs = col('client_timestamp');
+    if (cTs < 0) return { success: false, reason: 'client_timestamp column missing' };
+
+    var txs = [], minMs = Infinity, maxMs = 0;
+    for (var r = 1; r < data.length; r++) {
+        var ts = new Date(data[r][cTs]).getTime();
+        if (isNaN(ts)) continue; // undated rows never belong to a completed month
+        txs.push({
+            product: String(data[r][cProd] || ''),
+            pack: String(data[r][cPack] || ''),
+            prod: String(data[r][cProdM] || ''),
+            expiry: data[r][cExp] instanceof Date ? normalizeDateValue(data[r][cExp], 'expiry_month') : String(data[r][cExp] || ''),
+            qty: Number(data[r][cQty] || 0),
+            type: String(data[r][cType] || ''),
+            wh: String(data[r][cWh] || ''),
+            ts: ts
+        });
+        if (ts < minMs) minMs = ts;
+        if (ts > maxMs) maxMs = ts;
+    }
+    if (txs.length === 0) return { success: false, reason: 'no dated transactions' };
+
+    // Months (BD) already frozen in the snapshots tab
+    var snapSheet = ss.getSheetByName('snapshots');
+    var stored = {};
+    if (snapSheet && snapSheet.getLastRow() >= 2) {
+        var sData = snapSheet.getRange(1, 1, snapSheet.getLastRow(), snapSheet.getLastColumn()).getValues();
+        var sMi = sData[0].indexOf('snapshot_month');
+        for (var s = 1; s < sData.length; s++) { stored[String(sData[s][sMi] || '')] = true; }
+    }
+
+    var nowMs = Date.now();
+    var wrote = { months: [], rows: 0 };
+    snapshotCandidateMonths_(minMs, maxMs).forEach(function (mo) {
+        var snapshotMonth = mo.y + '-' + ('0' + (mo.m + 1)).slice(-2);
+        if (stored[snapshotMonth]) return;                      // already frozen
+        if (bdMonthEndTs(mo.y, mo.m) >= nowMs) return;          // month not ended yet
+        var rows = snapshotBuildRows_(txs, mo.y, mo.m);
+        if (rows.length === 0) return;                          // no inventory at that month end
+        handleBatchUpsert({
+            sheet: 'snapshots',
+            compositeKey: ['snapshot_month', 'product', 'pack_size', 'production_month', 'expiry_month', 'warehouse'],
+            items: rows
+        });
+        wrote.months.push(snapshotMonth);
+        wrote.rows += rows.length;
+    });
+
+    return { success: true, stored: wrote };
+}
+
+// One-time install (run manually from the editor): creates a monthly time
+// trigger for autoSnapshotMonthEnd, removing any duplicate triggers first.
+function installAutoSnapshotTrigger() {
+    ScriptApp.getProjectTriggers().forEach(function (t) {
+        if (t.getHandlerFunction() === 'autoSnapshotMonthEnd') ScriptApp.deleteTrigger(t);
+    });
+    ScriptApp.newTrigger('autoSnapshotMonthEnd').timeBased().onMonthDay(1).atHour(0).create();
+    return jsonResponse({ success: true, message: 'autoSnapshotMonthEnd trigger scheduled for 1st of each month at 00:00' });
+}
+
+// ==========================================================
 // HELPERS
 // ==========================================================
 
